@@ -1,0 +1,16 @@
+name: slimfire
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python=3.12
+  - fastapi
+  - geopandas
+  - pandas
+  - pyogrio
+  - python-dotenv
+  - requests
+  - rio-tiler
+  - scikit-learn
+  - uvicorn
