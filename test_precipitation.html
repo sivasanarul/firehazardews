@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Precipitation API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .form-section {
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        input, select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 300px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .results-section {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #007bff;
+            border-radius: 4px;
+        }
+        .timing {
+            font-weight: bold;
+            color: #28a745;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+        .timing.slow {
+            color: #ff6b6b;
+        }
+        .timing.loading {
+            color: #ffc107;
+        }
+        .stats {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .stat-item {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .stat-item strong {
+            display: block;
+            color: #007bff;
+            margin-bottom: 5px;
+        }
+        .json-output {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 4px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            border: 1px solid #ddd;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #f5c6cb;
+            margin-top: 15px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #c3e6cb;
+            margin-top: 15px;
+        }
+        .preset-bboxes {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .preset-btn {
+            background-color: #6c757d;
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+        .preset-btn:hover {
+            background-color: #5a6268;
+        }
+        .grid-viz {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 15px;
+            background: white;
+        }
+        .grid-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌧️ Precipitation API Test</h1>
+        
+        <div class="form-section">
+            <h2>Test Parameters</h2>
+            
+            <div class="form-group">
+                <label for="bbox">Bounding Box (west,south,east,north)</label>
+                <input type="text" id="bbox" placeholder="e.g., 21.9,-18.1,33.8,-8.2" value="21.9,-18.1,33.8,-8.2">
+                <div class="preset-bboxes">
+                    <button class="preset-btn" onclick="setBbox('21.9,-18.1,33.8,-8.2')">Zambia</button>
+                    <button class="preset-btn" onclick="setBbox('-10,-5,0,5')">Small Test (10°×10°)</button>
+                    <button class="preset-btn" onclick="setBbox('0,0,1,1')">Tiny Test (1°×1°)</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="timeWindow">Time Window</label>
+                <select id="timeWindow">
+                    <option value="1h">1 hour</option>
+                    <option value="6h">6 hours</option>
+                    <option value="24h" selected>24 hours</option>
+                    <option value="72h">72 hours</option>
+                    <option value="7d">7 days</option>
+                    <option value="14d">14 days</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="obsDate">Observation Date (optional)</label>
+                <input type="date" id="obsDate">
+            </div>
+            
+            <button onclick="testPrecipitation()">Test Precipitation API</button>
+            <button onclick="clearResults()" style="background-color: #6c757d;">Clear Results</button>
+        </div>
+        
+        <div id="resultsSection" class="results-section" style="display: none;">
+            <div id="timing" class="timing loading">⏳ Testing...</div>
+            
+            <div id="stats" class="stats" style="display: none;">
+                <div class="stat-item">
+                    <strong>Response Time:</strong>
+                    <span id="responseTime">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>HTTP Status:</strong>
+                    <span id="httpStatus">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>Data Points:</strong>
+                    <span id="pointCount">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>Grid Coverage:</strong>
+                    <span id="gridCoverage">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>Precip Range (mm):</strong>
+                    <span id="precipRange">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>Precip Average (mm):</strong>
+                    <span id="precipAvg">-</span>
+                </div>
+            </div>
+            
+            <div id="gridViz" class="grid-viz" style="display: none;">
+                <strong>Grid Visualization (sample):</strong>
+                <svg id="gridChart" width="300" height="200" style="border: 1px solid #ddd; margin-top: 10px;"></svg>
+                <div class="grid-info" id="gridInfo"></div>
+            </div>
+            
+            <div id="errorBox" class="error" style="display: none;"></div>
+            <div id="successBox" class="success" style="display: none;"></div>
+            
+            <h3>Raw Response:</h3>
+            <div id="jsonOutput" class="json-output">Loading...</div>
+        </div>
+    </div>
+
+    <script>
+        function setBbox(bbox) {
+            document.getElementById('bbox').value = bbox;
+        }
+
+        function clearResults() {
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('jsonOutput').textContent = '';
+        }
+
+        async function testPrecipitation() {
+            const bbox = document.getElementById('bbox').value.trim();
+            const timeWindow = document.getElementById('timeWindow').value;
+            const obsDate = document.getElementById('obsDate').value;
+            
+            // Validate bbox
+            if (!bbox) {
+                alert('Please enter a bounding box');
+                return;
+            }
+            
+            const bboxParts = bbox.split(',').map(x => x.trim());
+            if (bboxParts.length !== 4 || !bboxParts.every(x => !isNaN(parseFloat(x)))) {
+                alert('Invalid bbox format. Use: west,south,east,north');
+                return;
+            }
+            
+            // Show results section
+            document.getElementById('resultsSection').style.display = 'block';
+            document.getElementById('stats').style.display = 'none';
+            document.getElementById('gridViz').style.display = 'none';
+            document.getElementById('errorBox').style.display = 'none';
+            document.getElementById('successBox').style.display = 'none';
+            document.getElementById('jsonOutput').textContent = 'Loading...';
+            document.getElementById('timing').textContent = '⏳ Testing...';
+            document.getElementById('timing').classList.remove('slow');
+            document.getElementById('timing').classList.add('loading');
+            
+            const startTime = performance.now();
+            
+            try {
+                const params = new URLSearchParams({
+                    bbox: bbox,
+                    time_window: timeWindow
+                });
+                if (obsDate) params.append('observation_date', obsDate);
+                
+                const response = await fetch(`/api/precipitation/heatmap?${params}`);
+                const endTime = performance.now();
+                const duration = (endTime - startTime).toFixed(2);
+                
+                // Update timing
+                const isSlow = duration > 30000;
+                document.getElementById('timing').textContent = 
+                    `✓ Response received in ${duration}ms`;
+                document.getElementById('timing').classList.remove('loading');
+                if (isSlow) {
+                    document.getElementById('timing').classList.add('slow');
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                // Display raw JSON
+                document.getElementById('jsonOutput').textContent = 
+                    JSON.stringify(data, null, 2);
+                
+                // Calculate statistics
+                if (data.features && data.features.length > 0) {
+                    const features = data.features;
+                    const precipValues = features
+                        .map(f => f.properties.precipitation_mm)
+                        .filter(v => typeof v === 'number');
+                    
+                    const minPrecip = Math.min(...precipValues);
+                    const maxPrecip = Math.max(...precipValues);
+                    const avgPrecip = (precipValues.reduce((a, b) => a + b, 0) / precipValues.length).toFixed(2);
+                    
+                    const west = parseFloat(bboxParts[0]);
+                    const south = parseFloat(bboxParts[1]);
+                    const east = parseFloat(bboxParts[2]);
+                    const north = parseFloat(bboxParts[3]);
+                    const bboxArea = (east - west) * (north - south);
+                    const gridSpacing = 0.2; // From the fixed code
+                    const expectedGridPoints = Math.ceil((east - west) / gridSpacing) * Math.ceil((north - south) / gridSpacing);
+                    const coverage = ((features.length / expectedGridPoints) * 100).toFixed(1);
+                    
+                    // Show statistics
+                    document.getElementById('responseTime').textContent = `${duration}ms`;
+                    document.getElementById('httpStatus').textContent = `${response.status} OK`;
+                    document.getElementById('pointCount').textContent = features.length;
+                    document.getElementById('gridCoverage').textContent = `${coverage}% (expected ~${expectedGridPoints})`;
+                    document.getElementById('precipRange').textContent = 
+                        `${minPrecip.toFixed(2)} - ${maxPrecip.toFixed(2)}`;
+                    document.getElementById('precipAvg').textContent = avgPrecip;
+                    document.getElementById('stats').style.display = 'grid';
+                    
+                    // Visualize grid distribution
+                    visualizeGrid(features, bboxParts);
+                    
+                    // Show success message
+                    if (duration < 5000) {
+                        document.getElementById('successBox').textContent = 
+                            `✓ Precipitation data loaded successfully (${features.length} points, ${duration}ms)`;
+                        document.getElementById('successBox').style.display = 'block';
+                    } else {
+                        document.getElementById('successBox').textContent = 
+                            `⚠ Data loaded but response was slow (${duration}ms). Consider using smaller bbox or different time window.`;
+                        document.getElementById('successBox').style.display = 'block';
+                    }
+                } else {
+                    document.getElementById('errorBox').textContent = 
+                        '⚠ No precipitation data returned (may be missing data for this area/date)';
+                    document.getElementById('errorBox').style.display = 'block';
+                }
+                
+            } catch (error) {
+                document.getElementById('timing').textContent = '✗ Error';
+                document.getElementById('timing').classList.remove('loading');
+                document.getElementById('errorBox').textContent = 
+                    `Error: ${error.message}\n\nMake sure the API is running on localhost:8005`;
+                document.getElementById('errorBox').style.display = 'block';
+                document.getElementById('jsonOutput').textContent = error.message;
+            }
+        }
+        
+        function visualizeGrid(features, bboxParts) {
+            if (features.length === 0) return;
+            
+            const svg = document.getElementById('gridChart');
+            const width = 300, height = 200;
+            
+            // Clear SVG
+            while (svg.firstChild) svg.removeChild(svg.firstChild);
+            
+            // Parse bbox
+            const west = parseFloat(bboxParts[0]);
+            const south = parseFloat(bboxParts[1]);
+            const east = parseFloat(bboxParts[2]);
+            const north = parseFloat(bboxParts[3]);
+            
+            const bboxWidth = east - west;
+            const bboxHeight = north - south;
+            const scale = (val, min, max) => ((val - min) / (max - min)) * (val === 0 ? width : height);
+            
+            // Draw background
+            const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            bg.setAttribute('width', width);
+            bg.setAttribute('height', height);
+            bg.setAttribute('fill', '#f0f0f0');
+            svg.appendChild(bg);
+            
+            // Find precipitation range for color scaling
+            const precipValues = features.map(f => f.properties.precipitation_mm);
+            const maxPrecip = Math.max(...precipValues);
+            const minPrecip = Math.min(...precipValues);
+            
+            // Draw points
+            features.forEach(feature => {
+                const [lon, lat] = feature.geometry.coordinates;
+                const precip = feature.properties.precipitation_mm;
+                
+                const x = scale(lon, west, east);
+                const y = height - scale(lat, south, north);
+                
+                // Color based on precipitation
+                const intensity = (precip - minPrecip) / (maxPrecip - minPrecip);
+                const hue = (1 - intensity) * 240; // Blue to red
+                const color = `hsl(${hue}, 100%, 50%)`;
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('r', 2);
+                circle.setAttribute('fill', color);
+                circle.setAttribute('opacity', 0.7);
+                svg.appendChild(circle);
+            });
+            
+            // Add axis labels
+            const textWest = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            textWest.setAttribute('x', 5);
+            textWest.setAttribute('y', height - 5);
+            textWest.setAttribute('font-size', 10);
+            textWest.textContent = west.toFixed(1) + '°';
+            svg.appendChild(textWest);
+            
+            const textEast = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            textEast.setAttribute('x', width - 30);
+            textEast.setAttribute('y', height - 5);
+            textEast.setAttribute('font-size', 10);
+            textEast.textContent = east.toFixed(1) + '°';
+            svg.appendChild(textEast);
+            
+            const textSouth = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            textSouth.setAttribute('x', 5);
+            textSouth.setAttribute('y', height - 5);
+            textSouth.setAttribute('font-size', 10);
+            textSouth.textContent = south.toFixed(1) + '°';
+            svg.appendChild(textSouth);
+            
+            const textNorth = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            textNorth.setAttribute('x', 5);
+            textNorth.setAttribute('y', 15);
+            textNorth.setAttribute('font-size', 10);
+            textNorth.textContent = north.toFixed(1) + '°';
+            svg.appendChild(textNorth);
+            
+            document.getElementById('gridViz').style.display = 'block';
+            document.getElementById('gridInfo').textContent = 
+                `Grid shows ${features.length} points across bbox. Colors: Blue (low) → Red (high).`;
+        }
+    </script>
+</body>
+</html>

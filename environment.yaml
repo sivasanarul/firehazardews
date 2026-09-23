@@ -13,4 +13,11 @@ dependencies:
   - requests
   - rio-tiler
   - scikit-learn
+  - scipy
   - uvicorn
+  - pillow
+  - rasterio
+  - pip
+  - pip:
+      - nfdrs4py==0.2.2
+      - openeo
