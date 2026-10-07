@@ -300,11 +300,41 @@ input[type=range] { width: 100%; height: 14px; margin: 0; accent-color: var(--or
 .leaflet-control-attribution a { color: #536c5e !important; }
 .leaflet-control-scale { margin-left: 18px !important; margin-bottom: 3px !important; }
 .leaflet-control-scale-line { border-color: #6e806a !important; background: #ffffffa6 !important; font-size: 9px !important; }
-.leaflet-popup-content-wrapper { border-radius: 7px !important; }
-.leaflet-popup-content { font: 11px/1.5 "Segoe UI", sans-serif !important; min-width: 210px; }
-.popup-title { font-size: 14px; margin-bottom: 12px; font-weight: 600; }
-.popup-row { display: flex; justify-content: space-between; gap: 15px; padding: 5px 0; border-top: 1px solid #edf0e8; }
-.popup-row strong { font-weight: 500; color: var(--muted); }
+.leaflet-popup-content-wrapper {
+  overflow: hidden;
+  padding: 0 !important;
+  border: 1px solid #ffffff1f;
+  border-radius: 10px !important;
+  background: #17322c !important;
+  box-shadow: 0 14px 34px #10221c4d !important;
+}
+.leaflet-popup-content {
+  width: min(285px, calc(100vw - 54px)) !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  color: #edf4ee;
+  font: 11px/1.45 "Segoe UI", sans-serif !important;
+}
+.leaflet-popup-tip { background: #17322c !important; box-shadow: none !important; }
+.leaflet-container a.leaflet-popup-close-button {
+  display: grid;
+  place-items: center;
+  top: 9px !important;
+  right: 9px !important;
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 50%;
+  color: #dce9df !important;
+  font: 20px/20px Arial, sans-serif !important;
+}
+.leaflet-container a.leaflet-popup-close-button:hover { background: #ffffff14; color: #fff !important; }
+.popup-heading { padding: 16px 45px 14px 17px; background: linear-gradient(135deg, #24463a, #17322c); border-bottom: 1px solid #ffffff18; }
+.popup-eyebrow { display: block; margin-bottom: 5px; color: #f3a270; font-size: 9px; font-weight: 700; letter-spacing: 1.1px; }
+.popup-title { font-size: 16px; line-height: 1.2; font-weight: 600; letter-spacing: -.2px; }
+.popup-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 8px 17px; border-top: 1px solid #ffffff12; }
+.popup-heading + .popup-row { border-top: 0; }
+.popup-row strong { flex: 0 1 48%; font-weight: 500; color: #abc0b1; }
+.popup-row span { flex: 0 1 52%; color: #f1f6f2; text-align: right; overflow-wrap: anywhere; }
 
 dialog { width: min(520px, calc(100% - 32px)); padding: 30px; border: 1px solid #dbe3d4; border-radius: 10px; background: #fcfdf8; color: #334a30; }
 dialog::backdrop { background: #142b2366; }

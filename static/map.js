@@ -270,8 +270,12 @@
   }
   const popupLabels = {fire_id: 'Event ID', interval_start: 'Interval start', interval_end: 'Interval end', start_time: 'First observation', end_time: 'Last observation', detections: 'Detections', max_frp: 'Maximum FRP (MW)', cluster_area_ha: 'Cluster area (ha)', acq_datetime_utc: 'Observed (UTC)', satellite: 'Satellite', instrument: 'Instrument', confidence: 'Confidence', frp: 'FRP (MW)', firms_source: 'Source'};
   function popup(feature, layer) {
-    const panel = document.createElement('div');
-    const title = document.createElement('h3'); title.className = 'popup-title'; title.textContent = feature.geometry.type === 'Point' ? 'Fire observation' : 'Fire event'; panel.append(title);
+    const isObservation = feature.geometry.type === 'Point';
+    const panel = document.createElement('div'); panel.className = 'popup-card';
+    const heading = document.createElement('div'); heading.className = 'popup-heading';
+    const eyebrow = document.createElement('span'); eyebrow.className = 'popup-eyebrow'; eyebrow.textContent = isObservation ? 'FIRE DETECTION' : 'FIRE ACTIVITY';
+    const title = document.createElement('h3'); title.className = 'popup-title'; title.textContent = isObservation ? 'Fire observation' : 'Fire event';
+    heading.append(eyebrow, title); panel.append(heading);
     for (const [key, name] of Object.entries(popupLabels)) {
       const value = feature.properties?.[key]; if (value === undefined || value === null) continue;
       const row = document.createElement('div'); row.className = 'popup-row';
