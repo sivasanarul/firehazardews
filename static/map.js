@@ -12,6 +12,7 @@
   let unlockedStep = 0;
   let currentPanel = 'explore';
   let explored = false;
+  let fullControls = false;
   const guidance = [
     {title: 'Where would you like to explore?', description: 'Start with Zambia, or use the map to choose your own area.', next: 'Continue to dates', hint: 'Next, choose when to look for fire activity.'},
     {title: 'When would you like to look?', description: 'Choose a period to see the fire observations recorded during that time.', next: 'Continue to layers', hint: 'Next, choose what to show on the map.'},
@@ -30,13 +31,28 @@
   }
   function refreshActions() {
     const settings = currentPanel === 'explore';
-    $('next-step').hidden = !settings || setupStep === 2;
-    $('load').hidden = !settings || setupStep !== 2;
+    $('next-step').hidden = !settings || fullControls || setupStep === 2;
+    $('load').hidden = !settings || (!fullControls && setupStep !== 2);
     $('edit-settings').hidden = settings;
-    $('previous-step').hidden = !settings || setupStep === 0;
+    $('previous-step').hidden = !settings || fullControls || setupStep === 0;
     setText('load-label', busy ? 'Loading observations…' : explored ? 'Update map' : 'Explore map');
   }
+  function enableFullControls(focus = false) {
+    fullControls = true;
+    unlockedStep = 2;
+    $('setup-intro').hidden = true;
+    $('setup-steps').hidden = true;
+    $('setup-summary').hidden = true;
+    $('full-settings-heading').hidden = false;
+    for (const section of document.querySelectorAll('[data-step]')) section.hidden = false;
+    refreshActions();
+    if (focus) $('full-settings-heading').querySelector('h2').focus();
+  }
   function showStep(index, focus = false) {
+    if (fullControls) {
+      enableFullControls(focus);
+      return;
+    }
     setupStep = index;
     unlockedStep = Math.max(unlockedStep, index);
     for (const section of document.querySelectorAll('[data-step]')) section.hidden = Number(section.dataset.step) !== index;
@@ -80,7 +96,7 @@
   $('next-step').addEventListener('click', advanceStep);
   $('previous-step').addEventListener('click', () => showStep(Math.max(0, setupStep - 1), true));
   for (const button of document.querySelectorAll('[data-go-step]')) button.addEventListener('click', () => showStep(Number(button.dataset.goStep), true));
-  $('edit-settings').addEventListener('click', () => { setPanel('explore'); showStep(2, true); });
+  $('edit-settings').addEventListener('click', () => { enableFullControls(); setPanel('explore'); $('full-settings-heading').querySelector('h2').focus(); });
   showStep(0);
   function setPanel(name) {
     currentPanel = name;
@@ -93,7 +109,7 @@
     }
     refreshActions();
     if (name === 'activity') setText('form-hint', 'Select an observation to find it on the map.');
-    else setText('form-hint', guidance[setupStep].hint);
+    else setText('form-hint', fullControls ? 'Change any setting, then update the map.' : guidance[setupStep].hint);
   }
   for (const name of ['explore', 'activity']) {
     $(name + '-tab').addEventListener('click', () => setPanel(name));
@@ -166,7 +182,7 @@
   }
   updateArea(true);
   new ResizeObserver(() => map.invalidateSize()).observe($('map'));
-  function dirty() { if (!busy) setText('form-hint', setupStep === 2 ? 'Settings changed. Load your map to apply.' : guidance[setupStep].hint); }
+  function dirty() { if (!busy) setText('form-hint', fullControls ? 'Settings changed. Update the map to apply.' : setupStep === 2 ? 'Settings changed. Load your map to apply.' : guidance[setupStep].hint); }
   form.addEventListener('input', dirty);
   form.addEventListener('change', dirty);
   $('region').addEventListener('change', () => {
@@ -331,6 +347,7 @@
       $('end').focus();
       return;
     }
+    enableFullControls();
     busy = true;
     const run = ++generation;
     const query = {bbox: $('bbox').value, start: $('start').value, end: $('end').value, sensor: $('sensor').value};
@@ -357,6 +374,7 @@
       renderResults(data, layer, mode); $('export').disabled = false; $('export').hidden = false;
       explored = true;
       $('workspace-tabs').hidden = false;
+      enableFullControls();
       state('fire', `${number(data.features.length)} ${mode === 'events' ? 'event polygons' : 'fire detections'}`);
     });
     if ($('show-burned-area').checked) task('burned', 'Burned area', () => tiles('burned', 'Burned area', '/api/burned-area/tiles/{z}/{x}/{y}.png?' + new URLSearchParams({start: query.start, end: query.end}), {opacity: .7, attribution: 'Burned area © European Commission JRC / GWIS'}, run));
