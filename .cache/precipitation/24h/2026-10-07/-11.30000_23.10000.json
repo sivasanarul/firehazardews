@@ -1,0 +1,106 @@
+{
+  "latitude": -11.300000000000026,
+  "longitude": 23.099999999999994,
+  "time_window": "24h",
+  "precipitation_mm": 1.7,
+  "start_time": "2026-10-07T00:00:00+00:00",
+  "end_time": "2026-10-07T23:00:00+00:00",
+  "hourly": [
+    {
+      "time": "2026-10-07T00:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T01:00",
+      "precipitation_mm": 0.4
+    },
+    {
+      "time": "2026-10-07T02:00",
+      "precipitation_mm": 0.4
+    },
+    {
+      "time": "2026-10-07T03:00",
+      "precipitation_mm": 0.5
+    },
+    {
+      "time": "2026-10-07T04:00",
+      "precipitation_mm": 0.1
+    },
+    {
+      "time": "2026-10-07T05:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T06:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T07:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T08:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T09:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T10:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T11:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T12:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T13:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T14:00",
+      "precipitation_mm": 0.2
+    },
+    {
+      "time": "2026-10-07T15:00",
+      "precipitation_mm": 0.1
+    },
+    {
+      "time": "2026-10-07T16:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T17:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T18:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T19:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T20:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T21:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T22:00",
+      "precipitation_mm": 0.0
+    },
+    {
+      "time": "2026-10-07T23:00",
+      "precipitation_mm": 0.0
+    }
+  ]
+}

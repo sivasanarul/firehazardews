@@ -8,6 +8,15 @@
   let loaded = null;
   let generation = 0;
   let palette = [];
+  let setupStep = 0;
+  let unlockedStep = 0;
+  let currentPanel = 'explore';
+  let explored = false;
+  const guidance = [
+    {title: 'Where would you like to explore?', description: 'Start with Zambia, or use the map to choose your own area.', next: 'Continue to dates', hint: 'Next, choose when to look for fire activity.'},
+    {title: 'When would you like to look?', description: 'Choose a period to see the fire observations recorded during that time.', next: 'Continue to layers', hint: 'Next, choose what to show on the map.'},
+    {title: 'What would you like to see?', description: 'Begin with fire detections. Add landscape context whenever you need it.', hint: 'Your map is ready. Load your selected observations.'}
+  ];
   const overlays = new Map();
   const layerStates = new Map();
   const number = value => Number(value).toLocaleString(undefined, {maximumFractionDigits: 1});
@@ -16,9 +25,65 @@
 
   function setStatus(message, state = 'ready') {
     setText('status', message);
+    $('map-status').hidden = false;
     $('map-status').dataset.state = state;
   }
+  function refreshActions() {
+    const settings = currentPanel === 'explore';
+    $('next-step').hidden = !settings || setupStep === 2;
+    $('load').hidden = !settings || setupStep !== 2;
+    $('edit-settings').hidden = settings;
+    $('previous-step').hidden = !settings || setupStep === 0;
+    setText('load-label', busy ? 'Loading observations…' : explored ? 'Update map' : 'Explore map');
+  }
+  function showStep(index, focus = false) {
+    setupStep = index;
+    unlockedStep = Math.max(unlockedStep, index);
+    for (const section of document.querySelectorAll('[data-step]')) section.hidden = Number(section.dataset.step) !== index;
+    for (const button of document.querySelectorAll('[data-go-step]')) {
+      const step = Number(button.dataset.goStep);
+      button.disabled = busy || step > unlockedStep;
+      if (step === index) button.setAttribute('aria-current', 'step');
+      else button.removeAttribute('aria-current');
+      button.classList.toggle('complete', step < index);
+    }
+    const guide = guidance[index];
+    setText('step-caption', `STEP ${index + 1} OF 3`);
+    setText('step-title', guide.title);
+    setText('step-description', guide.description);
+    setText('form-hint', guide.hint);
+    if (index < 2) setText('next-step-label', guide.next);
+    if (index > 0) setText('previous-step', index === 1 ? 'Back to area' : 'Back to dates');
+    if (index === 2) setText('setup-summary', `${$('region').value === 'zambia' ? 'Zambia' : 'Custom area'} · ${dateLabel($('start').value)} – ${dateLabel($('end').value)}`);
+    refreshActions();
+    $('explore-panel').scrollTop = 0;
+    if (focus) $('step-title').focus();
+  }
+  function validateDates() {
+    if (!$('start').value || !$('end').value || $('start').value > $('end').value) throw new Error('Choose an end date on or after the start date.');
+  }
+  function advanceStep() {
+    if (busy) return;
+    try {
+      if (setupStep === 0) readBounds();
+      else validateDates();
+      showStep(Math.min(2, setupStep + 1), true);
+    } catch (error) {
+      setText('form-hint', error.message);
+      setStatus(error.message, 'error');
+      if (setupStep === 0) {
+        $('bbox').closest('details').open = true;
+        $('bbox').focus();
+      } else $('end').focus();
+    }
+  }
+  $('next-step').addEventListener('click', advanceStep);
+  $('previous-step').addEventListener('click', () => showStep(Math.max(0, setupStep - 1), true));
+  for (const button of document.querySelectorAll('[data-go-step]')) button.addEventListener('click', () => showStep(Number(button.dataset.goStep), true));
+  $('edit-settings').addEventListener('click', () => { setPanel('explore'); showStep(2, true); });
+  showStep(0);
   function setPanel(name) {
+    currentPanel = name;
     for (const panel of ['explore', 'activity']) {
       const active = panel === name;
       $(panel + '-panel').hidden = !active;
@@ -26,6 +91,9 @@
       $(panel + '-tab').setAttribute('aria-selected', String(active));
       $(panel + '-tab').tabIndex = active ? 0 : -1;
     }
+    refreshActions();
+    if (name === 'activity') setText('form-hint', 'Select an observation to find it on the map.');
+    else setText('form-hint', guidance[setupStep].hint);
   }
   for (const name of ['explore', 'activity']) {
     $(name + '-tab').addEventListener('click', () => setPanel(name));
@@ -42,10 +110,14 @@
     $('sidebar-backdrop').hidden = !open;
     $('menu-toggle').setAttribute('aria-expanded', String(open));
     $('sidebar').inert = matchMedia('(max-width: 900px)').matches && !open;
-    if (open) $('explore-tab').focus();
+    if (open) {
+      if ($('workspace-tabs').hidden) $('step-title').focus();
+      else $(currentPanel + '-tab').focus();
+    }
     else if (returnFocus) $('menu-toggle').focus();
   }
   $('menu-toggle').addEventListener('click', () => sidebar(!$('sidebar').classList.contains('open')));
+  $('start-setup').addEventListener('click', () => { setPanel('explore'); sidebar(true); });
   $('sidebar-backdrop').addEventListener('click', () => sidebar(false, true));
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && $('sidebar').classList.contains('open')) sidebar(false, true);
@@ -64,7 +136,7 @@
 
   if (!window.L) {
     setStatus('The map library could not load. Check your connection and refresh the page.', 'error');
-    for (const id of ['load', 'get-started', 'fit-area', 'use-map']) $(id).disabled = true;
+    for (const id of ['load', 'next-step', 'fit-area', 'use-map']) $(id).disabled = true;
     return;
   }
   const map = L.map('map', {preferCanvas: true, zoomControl: false, minZoom: 2, worldCopyJump: true}).setView([-13.2, 27.8], 6);
@@ -93,9 +165,8 @@
     if (fit) map.fitBounds(selectedBounds, {padding: [40, 40]});
   }
   updateArea(true);
-  map.on('moveend', () => { const c = map.getCenter(); setText('map-coordinates', `${Math.abs(c.lat).toFixed(3)}° ${c.lat < 0 ? 'S' : 'N'}   ${Math.abs(c.lng).toFixed(3)}° ${c.lng < 0 ? 'W' : 'E'}`); });
   new ResizeObserver(() => map.invalidateSize()).observe($('map'));
-  function dirty() { if (!busy) setText('form-hint', 'Settings changed. Update the map to apply.'); }
+  function dirty() { if (!busy) setText('form-hint', setupStep === 2 ? 'Settings changed. Load your map to apply.' : guidance[setupStep].hint); }
   form.addEventListener('input', dirty);
   form.addEventListener('change', dirty);
   $('region').addEventListener('change', () => {
@@ -168,8 +239,6 @@
     const failures = states.some(state => state.error);
     const pending = states.some(state => state.pending);
     setStatus(states.map(state => state.message).join(' · ') || 'No layers selected. Choose a data layer to begin.', failures ? 'error' : pending ? 'loading' : 'ready');
-    setText('active-layers', overlays.size);
-    setText('layer-description', overlays.size === 1 ? 'Layer on map' : 'Layers on map');
   }
   function state(key, message, options = {}) { layerStates.set(key, {message, ...options}); refreshStatus(); }
   function tiles(key, name, url, options, run) {
@@ -202,7 +271,6 @@
     setText('detection-count', number(features.length));
     setText('results-badge', number(features.length));
     setText('count-label', isEvents ? 'Fire events' : 'Fire detections');
-    setText('count-description', 'In selected area');
     const powers = features.map(feature => feature.properties?.[isEvents ? 'max_frp' : 'frp']).filter(value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))).map(Number);
     setText('max-frp', powers.length ? number(powers.reduce((a, b) => Math.max(a, b), -Infinity)) : '—');
     setText('results-description', features.length ? `${number(features.length)} ${isEvents ? 'event polygons' : 'detections'}. Select an observation to locate it on the map.${features.length > 100 ? ' Showing the first 100; export for all records.' : ''}` : 'No observations returned for this area, period, and sensor. Try a different selection.');
@@ -221,6 +289,7 @@
     });
   }
   function renderLegend() {
+    $('map-legend').hidden = overlays.size === 0;
     const container = $('legend-content'); container.replaceChildren();
     function row(color, label) { const line = document.createElement('div'); line.className = 'legend-row'; const swatch = document.createElement('span'); swatch.className = 'legend-swatch'; swatch.style.backgroundColor = color; const text = document.createElement('span'); text.textContent = label; line.append(swatch, text); container.append(line); }
     if (overlays.has('fire')) row('#e58149', loaded?.mode === 'events' ? 'Fire event polygons' : 'Fire detections');
@@ -235,20 +304,31 @@
     if (!overlays.size) container.textContent = 'Load layers to see their legend.';
   }
   function resetResults() {
-    loaded = null; $('export').disabled = true;
+    loaded = null; $('export').disabled = true; $('export').hidden = true;
     setText('detection-count', '—'); setText('max-frp', '—'); setText('results-badge', '0');
-    setText('count-description', 'No fire observations loaded');
     setText('results-description', 'No fire observations loaded for this selection.'); $('results-list').replaceChildren();
   }
   form.addEventListener('submit', async event => {
     event.preventDefault(); if (busy) return;
+    if (setupStep < 2) { advanceStep(); return; }
     let bounds;
     try {
       bounds = readBounds();
-      if (!$('start').value || !$('end').value || $('start').value > $('end').value) throw new Error('Choose an end date on or after the start date.');
     } catch (error) {
-      setStatus(error.message, 'error'); setText('form-hint', error.message); setPanel('explore');
+      setPanel('explore'); showStep(0);
+      setStatus(error.message, 'error'); setText('form-hint', error.message);
+      $('bbox').closest('details').open = true;
       if (matchMedia('(max-width: 900px)').matches) sidebar(true);
+      $('bbox').focus();
+      return;
+    }
+    try {
+      validateDates();
+    } catch (error) {
+      setPanel('explore'); showStep(1);
+      setStatus(error.message, 'error'); setText('form-hint', error.message);
+      if (matchMedia('(max-width: 900px)').matches) sidebar(true);
+      $('end').focus();
       return;
     }
     busy = true;
@@ -256,17 +336,14 @@
     const query = {bbox: $('bbox').value, start: $('start').value, end: $('end').value, sensor: $('sensor').value};
     const mode = $('fire-display').value;
     for (const el of form.querySelectorAll('input,select,button')) el.disabled = true;
-    $('get-started').disabled = true;
     $('load').setAttribute('aria-busy', 'true');
     setText('load-label', 'Loading observations…'); setText('form-hint', 'Connecting to your selected data sources…');
-    $('welcome-panel').hidden = true;
     sidebar(false);
     for (const layer of overlays.values()) map.removeLayer(layer);
     overlays.clear(); layerStates.clear(); resetResults(); renderLegend();
     map.fitBounds(bounds, {padding: [40, 40]});
     setText('period-days', Math.round((Date.parse(query.end) - Date.parse(query.start)) / 86400000) + 1);
-    setText('period-description', 'Days selected');
-    setText('loaded-period', `Selected period · ${dateLabel(query.start)} – ${dateLabel(query.end)}`);
+    setText('loaded-period', `${dateLabel(query.start)} – ${dateLabel(query.end)}`);
     const tasks = [];
     const task = (key, name, action) => {
       state(key, `${name} loading`, {pending: true});
@@ -277,7 +354,9 @@
       if (!Array.isArray(data.features)) throw new Error('No valid observation collection was returned.');
       const layer = L.geoJSON(data, {style: {color: '#b96539', weight: 1.5, fillColor: '#ec965e', fillOpacity: .28}, pointToLayer: (_feature, latlng) => L.circleMarker(latlng, {radius: 4, color: '#a55730', weight: .8, fillColor: '#ed9453', fillOpacity: .85}), onEachFeature: popup}).addTo(map);
       overlays.set('fire', layer); loaded = {data, ...query, mode};
-      renderResults(data, layer, mode); $('export').disabled = false;
+      renderResults(data, layer, mode); $('export').disabled = false; $('export').hidden = false;
+      explored = true;
+      $('workspace-tabs').hidden = false;
       state('fire', `${number(data.features.length)} ${mode === 'events' ? 'event polygons' : 'fire detections'}`);
     });
     if ($('show-burned-area').checked) task('burned', 'Burned area', () => tiles('burned', 'Burned area', '/api/burned-area/tiles/{z}/{x}/{y}.png?' + new URLSearchParams({start: query.start, end: query.end}), {opacity: .7, attribution: 'Burned area © European Commission JRC / GWIS'}, run));
@@ -301,17 +380,18 @@
     try { await Promise.allSettled(tasks); }
     finally {
       busy = false;
+      if (overlays.size || loaded) $('start-setup').hidden = true;
       for (const el of form.querySelectorAll('input,select,button')) el.disabled = false;
-      $('get-started').disabled = false;
       $('load').setAttribute('aria-busy', 'false');
-      setText('load-label', 'Update map');
+      showStep(setupStep);
+      if (loaded) setPanel('activity');
+      else setPanel('explore');
       const errors = [...layerStates.values()].some(item => item.error);
-      setText('form-hint', errors ? 'Some data could not load. See the map status.' : tasks.length ? 'Map updated. Adjust your selection to explore.' : 'Select at least one layer to explore.');
+      setText('form-hint', errors ? 'Some data could not load. See the map status.' : loaded ? loaded.data.features.length ? 'Select an observation to find it on the map.' : 'No observations returned. Adjust your area or dates.' : tasks.length ? 'Map updated. Adjust your selection to explore.' : 'Select at least one layer to explore.');
       selectionChanged(); renderLegend(); refreshStatus();
     }
   });
-  form.addEventListener('invalid', event => { setPanel('explore'); if (event.target.id === 'bbox') event.target.closest('details').open = true; if (matchMedia('(max-width: 900px)').matches) sidebar(true); }, true);
-  $('get-started').addEventListener('click', () => form.requestSubmit());
+  form.addEventListener('invalid', event => { setPanel('explore'); showStep(event.target.id === 'bbox' ? 0 : 1); if (event.target.id === 'bbox') event.target.closest('details').open = true; if (matchMedia('(max-width: 900px)').matches) sidebar(true); }, true);
   $('export').addEventListener('click', () => {
     if (!loaded) return;
     const url = URL.createObjectURL(new Blob([JSON.stringify(loaded.data, null, 2)], {type: 'application/geo+json'}));
