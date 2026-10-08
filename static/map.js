@@ -23,6 +23,16 @@
   const number = value => Number(value).toLocaleString(undefined, {maximumFractionDigits: 1});
   const setText = (id, text) => { $(id).textContent = text; };
   const dateLabel = value => new Date(value + 'T00:00:00Z').toLocaleDateString(undefined, {day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC'});
+  function refreshHeaderContext() {
+    $('header-context').hidden = !fullControls;
+    if (!fullControls) return;
+    setText('header-area', $('region').value === 'zambia' ? 'Zambia' : 'Custom area');
+    const start = $('start').value;
+    const end = $('end').value;
+    setText('header-dates', start && end ? `${dateLabel(start)} – ${dateLabel(end)}` : 'Select a period');
+    const selected = Number($('fire-display').value !== 'none') + ['show-burned-area', 'show-land-cover', 'show-fuel', 'show-precip-heatmap'].filter(id => $(id).checked).length;
+    setText('header-layers', `${selected} ${selected === 1 ? 'layer' : 'layers'}`);
+  }
 
   function setStatus(message, state = 'ready') {
     setText('status', message);
@@ -45,6 +55,8 @@
     $('setup-summary').hidden = true;
     $('full-settings-heading').hidden = false;
     for (const section of document.querySelectorAll('[data-step]')) section.hidden = false;
+    $('explore-panel').classList.add('full-settings');
+    refreshHeaderContext();
     refreshActions();
     if (focus) $('full-settings-heading').querySelector('h2').focus();
   }
@@ -178,6 +190,7 @@
     if (areaOutline) map.removeLayer(areaOutline);
     areaOutline = L.rectangle(selectedBounds, {color: '#536f55', weight: 1, dashArray: '5 6', fill: false, interactive: false}).addTo(map);
     setText('area-label', $('region').value === 'zambia' ? 'Zambia' : 'Custom area');
+    refreshHeaderContext();
     if (fit) map.fitBounds(selectedBounds, {padding: [40, 40]});
   }
   updateArea(true);
@@ -209,7 +222,7 @@
       dirty();
     });
   }
-  for (const id of ['start', 'end']) $(id).addEventListener('input', () => { for (const preset of document.querySelectorAll('[data-days]')) preset.classList.remove('active'); });
+  for (const id of ['start', 'end']) $(id).addEventListener('input', () => { for (const preset of document.querySelectorAll('[data-days]')) preset.classList.remove('active'); refreshHeaderContext(); });
   const toggles = ['show-burned-area', 'show-land-cover', 'show-fuel', 'show-precip-heatmap'];
   function selectionChanged() {
     const fire = $('fire-display').value !== 'none';
@@ -224,6 +237,7 @@
       if (panel) { $(panel).hidden = !input.checked; input.setAttribute('aria-expanded', String(input.checked)); }
     }
     setText('selected-count', `${Number(fire) + toggles.filter(id => $(id).checked).length} selected`);
+    refreshHeaderContext();
   }
   for (const id of [...toggles, 'fire-display']) $(id).addEventListener('change', selectionChanged);
   for (const [id, key] of [['land-cover-opacity', 'land'], ['fuel-opacity', 'fuel'], ['precip-heatmap-opacity', 'rain']]) {
