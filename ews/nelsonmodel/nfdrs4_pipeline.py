@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.util
 import json
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -27,6 +26,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from slim_fire.ews.dryfuel.spatial import BBox, Grid, Raster
+from slim_fire.geography import ZAMBIA_EXTENT
 
 OPEN_METEO_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 OPEN_METEO_MODEL = "ecmwf_ifs"
@@ -64,14 +64,8 @@ class WeatherHour:
 
 
 def load_zambia_extent() -> dict[str, float]:
-    """Load config.py without triggering hazardmap package imports."""
-    config_path = SRC_DIR / "slim_fire" / "hazardmap" / "config.py"
-    spec = importlib.util.spec_from_file_location("slim_fire_hazardmap_config", config_path)
-    if spec is None or spec.loader is None:
-        raise NelsonModelError(f"Could not load config.py from {config_path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.ZAMBIA_EXTENT
+    """Return a copy of the shared Zambia extent."""
+    return dict(ZAMBIA_EXTENT)
 
 
 def bbox_from_config() -> BBox:

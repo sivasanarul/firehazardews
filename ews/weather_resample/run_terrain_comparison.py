@@ -18,11 +18,15 @@ if str(SRC_DIR) not in sys.path:
 
 from slim_fire.ews.dryfuel.spatial import NODATA, Raster  # noqa: E402
 from slim_fire.ews.nelsonmodel import nfdrs4_pipeline as nelson  # noqa: E402
-from slim_fire.ews.precipitation_resample import (  # noqa: E402
+from slim_fire.ews.precipitation_resample.terrain_precipitation import (  # noqa: E402
     DEFAULT_ASPECT_WEIGHT, DEFAULT_ELEVATION_COEFFICIENT, DEFAULT_FACTOR_MAX, DEFAULT_FACTOR_MIN,
     DEFAULT_REFERENCE_WIND_KMH, downscale_hourly_precipitation, terrain_precipitation_factor,
 )
 from slim_fire.ews.weather_resample.terrain_weather import (  # noqa: E402
+    DEFAULT_ASPECT_BIN_DEG,
+    DEFAULT_ELEVATION_BIN_M,
+    DEFAULT_FLAT_SLOPE_DEG,
+    DEFAULT_SLOPE_BIN_DEG,
     PRECIP_SENSITIVITY_S_PER_M,
     PRECIP_SMOOTHING_M,
     PRECIP_WEIGHT_MAX,
@@ -32,6 +36,7 @@ from slim_fire.ews.weather_resample.terrain_weather import (  # noqa: E402
     solar_position,
     solar_terrain_factor,
     terrain_adjust_weather_grid,
+    terrain_states,
     upslope_precipitation_grid,
 )
 
@@ -41,10 +46,6 @@ WEATHER_NAMES = (
     "temperature_c", "relative_humidity_pct", "precipitation_mm",
     "wind_kmh", "shortwave_wm2",
 )
-DEFAULT_ELEVATION_BIN_M = 10.0
-DEFAULT_SLOPE_BIN_DEG = 2.5
-DEFAULT_ASPECT_BIN_DEG = 15.0
-DEFAULT_FLAT_SLOPE_DEG = 2.0
 DEFAULT_GRADIENT_BIN = 0.002  # m/m; only used when upslope precipitation is on
 
 _NFDRS_WORKER_CONTEXT: tuple[list[tuple], float, str, float] | None = None
@@ -100,48 +101,6 @@ def read_gradient_with_halo(
     row0, col0 = int(window.row_off - padded.row_off), int(window.col_off - padded.col_off)
     crop = (slice(row0, row0 + int(window.height)), slice(col0, col0 + int(window.width)))
     return gradient_x[crop], gradient_y[crop]
-
-
-def terrain_states(
-    elevation_m: np.ndarray, slope_deg: np.ndarray, aspect_deg: np.ndarray,
-    elevation_bin_m: float, slope_bin_deg: float, aspect_bin_deg: float, flat_slope_deg: float,
-    extra: tuple[tuple[np.ndarray, float], ...] = (),
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[np.ndarray]]:
-    """Group pixels whose terrain-corrected weather is interchangeable.
-
-    NFDRS4 is a sequential hour-by-hour integration with no array API, so the
-    only way to vectorize the raster is to shrink the number of runs. Corrected
-    weather is a pure function of (elevation, slope, aspect), so pixels landing
-    in the same terrain bin share one run; the bin's mean terrain is used as its
-    representative. A bin width of zero groups only exactly equal terrain.
-
-    ``extra`` adds further ``(values, bin_width)`` dimensions to the grouping key
-    -- used for the upslope precipitation gradient, which makes rainfall vary
-    per pixel and so can no longer be shared across a terrain bin.
-
-    Returns ``(state_index_per_pixel, elevation, slope, aspect, extras)`` where
-    the terrain arrays and each extra hold one representative value per state.
-    """
-    elevation = np.asarray(elevation_m, dtype=np.float64).ravel()
-    slope = np.asarray(slope_deg, dtype=np.float64).ravel()
-    aspect = np.mod(np.asarray(aspect_deg, dtype=np.float64).ravel(), 360.0)
-
-    def binned(values: np.ndarray, width: float) -> np.ndarray:
-        return values if width <= 0 else np.rint(values / width)
-
-    aspect_key = np.where(slope <= flat_slope_deg, -1.0, binned(aspect, aspect_bin_deg))
-    columns = [binned(elevation, elevation_bin_m), binned(slope, slope_bin_deg), aspect_key]
-    extra_values = [np.asarray(values, dtype=np.float64).ravel() for values, _ in extra]
-    columns.extend(binned(values, width) for values, (_, width) in zip(extra_values, extra, strict=True))
-    _, inverse = np.unique(np.stack(columns, axis=1), axis=0, return_inverse=True)
-    inverse = np.asarray(inverse).ravel()
-    counts = np.bincount(inverse).astype(np.float64)
-
-    def representative(values: np.ndarray) -> np.ndarray:
-        return (np.bincount(inverse, weights=values) / counts).astype(np.float32)
-
-    terrain = [representative(values) for values in (elevation, slope, aspect)]
-    return (inverse, *terrain, [representative(values) for values in extra_values])
 
 
 def parse_bbox(value: str) -> tuple[float, float, float, float]:

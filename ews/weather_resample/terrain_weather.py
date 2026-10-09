@@ -47,6 +47,10 @@ from slim_fire.ews.nelsonmodel.nfdrs4_pipeline import WeatherHour  # noqa: E402
 LAPSE_RATE_C_PER_M = 0.0065
 SOLAR_FACTOR_MIN = 0.5
 SOLAR_FACTOR_MAX = 1.5
+DEFAULT_ELEVATION_BIN_M = 10.0
+DEFAULT_SLOPE_BIN_DEG = 2.5
+DEFAULT_ASPECT_BIN_DEG = 15.0
+DEFAULT_FLAT_SLOPE_DEG = 2.0
 PRECIP_SMOOTHING_M = 1500.0
 PRECIP_SENSITIVITY_S_PER_M = 2.0
 PRECIP_WEIGHT_MIN = 0.5
@@ -57,6 +61,44 @@ METERS_PER_DEGREE_LON = 111320.0
 
 class TerrainResampleError(RuntimeError):
     """Raised when terrain rasters cannot be sampled at a requested point."""
+
+
+def terrain_states(
+    elevation_m: np.ndarray,
+    slope_deg: np.ndarray,
+    aspect_deg: np.ndarray,
+    elevation_bin_m: float,
+    slope_bin_deg: float,
+    aspect_bin_deg: float,
+    flat_slope_deg: float,
+    extra: tuple[tuple[np.ndarray, float], ...] = (),
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[np.ndarray]]:
+    """Group pixels that can share one terrain-conditioned NFDRS4 run.
+
+    Each state uses the mean terrain values of the pixels in the same elevation,
+    slope and aspect bins. Aspect is ignored for nearly flat terrain. Additional
+    arrays can participate in the grouping through ``extra``.
+    """
+    elevation = np.asarray(elevation_m, dtype=np.float64).ravel()
+    slope = np.asarray(slope_deg, dtype=np.float64).ravel()
+    aspect = np.mod(np.asarray(aspect_deg, dtype=np.float64).ravel(), 360.0)
+
+    def binned(values: np.ndarray, width: float) -> np.ndarray:
+        return values if width <= 0 else np.rint(values / width)
+
+    aspect_key = np.where(slope <= flat_slope_deg, -1.0, binned(aspect, aspect_bin_deg))
+    columns = [binned(elevation, elevation_bin_m), binned(slope, slope_bin_deg), aspect_key]
+    extra_values = [np.asarray(values, dtype=np.float64).ravel() for values, _ in extra]
+    columns.extend(binned(values, width) for values, (_, width) in zip(extra_values, extra, strict=True))
+    _, inverse = np.unique(np.stack(columns, axis=1), axis=0, return_inverse=True)
+    inverse = np.asarray(inverse).ravel()
+    counts = np.bincount(inverse).astype(np.float64)
+
+    def representative(values: np.ndarray) -> np.ndarray:
+        return (np.bincount(inverse, weights=values) / counts).astype(np.float32)
+
+    terrain = [representative(values) for values in (elevation, slope, aspect)]
+    return (inverse, *terrain, [representative(values) for values in extra_values])
 
 
 @dataclass(frozen=True)
