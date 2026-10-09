@@ -26,7 +26,7 @@ SRC_DIR = Path(__file__).resolve().parents[3]
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from slim_fire.ews.dryfuel.common import BBox, Grid, Raster
+from slim_fire.ews.dryfuel.spatial import BBox, Grid, Raster
 
 OPEN_METEO_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 OPEN_METEO_MODEL = "ecmwf_ifs"

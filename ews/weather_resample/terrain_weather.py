@@ -16,13 +16,13 @@ weather": the underlying meteorological information is still coarse.
 Use ``sample_terrain`` to read elevation/slope/aspect (as produced by
 ``slim_fire/ews/dem/create_dem.py``) at a point, then ``terrain_adjust_weather``
 to correct a coarse ``WeatherHour`` series before calling
-``slim_fire.ews.nelsonmodel.test.run_nfdrs4_point``.
+``slim_fire.ews.nelsonmodel.nfdrs4_pipeline.run_nfdrs4_point``.
 
 All correction math is written with numpy so it accepts either scalars or
 arrays: ``terrain_adjust_weather_grid`` applies it to a full elevation/slope/
 aspect array (e.g. every 100 m pixel inside one coarse weather cell) at once,
 preserving each pixel's exact continuous terrain value with no quantization.
-NFDRS4 itself has no array API, so ``run_comparison`` runs it once per distinct
+NFDRS4 itself has no array API, so ``run_terrain_comparison`` runs it once per distinct
 terrain state (see ``terrain_states``) rather than once per pixel.
 """
 
@@ -42,7 +42,7 @@ SRC_DIR = Path(__file__).resolve().parents[3]
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from slim_fire.ews.nelsonmodel.test import WeatherHour  # noqa: E402
+from slim_fire.ews.nelsonmodel.nfdrs4_pipeline import WeatherHour  # noqa: E402
 
 LAPSE_RATE_C_PER_M = 0.0065
 SOLAR_FACTOR_MIN = 0.5

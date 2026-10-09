@@ -9,7 +9,7 @@ import unittest
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from slim_fire.ews.nelsonmodel import test as nelson  # noqa: E402
+from slim_fire.ews.nelsonmodel import nfdrs4_pipeline as nelson  # noqa: E402
 
 
 def synthetic_weather(

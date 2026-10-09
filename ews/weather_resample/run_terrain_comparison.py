@@ -16,13 +16,13 @@ SRC_DIR = Path(__file__).resolve().parents[3]
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from slim_fire.ews.dryfuel.common import NODATA, Raster  # noqa: E402
-from slim_fire.ews.nelsonmodel import test as nelson  # noqa: E402
+from slim_fire.ews.dryfuel.spatial import NODATA, Raster  # noqa: E402
+from slim_fire.ews.nelsonmodel import nfdrs4_pipeline as nelson  # noqa: E402
 from slim_fire.ews.precipitation_resample import (  # noqa: E402
     DEFAULT_ASPECT_WEIGHT, DEFAULT_ELEVATION_COEFFICIENT, DEFAULT_FACTOR_MAX, DEFAULT_FACTOR_MIN,
     DEFAULT_REFERENCE_WIND_KMH, downscale_hourly_precipitation, terrain_precipitation_factor,
 )
-from slim_fire.ews.weather_resample.weatherdemresample import (  # noqa: E402
+from slim_fire.ews.weather_resample.terrain_weather import (  # noqa: E402
     PRECIP_SENSITIVITY_S_PER_M,
     PRECIP_SMOOTHING_M,
     PRECIP_WEIGHT_MAX,
@@ -213,7 +213,7 @@ def constant_grid(value: float, shape: tuple[int, int], valid: np.ndarray) -> np
     return np.where(valid, value, np.nan).astype(np.float32)
 
 
-def run_comparison(
+def run_terrain_comparison(
     snapshot: datetime,
     bbox: tuple[float, float, float, float],
     dem_path: Path,
@@ -431,7 +431,7 @@ def main() -> None:
     parser.add_argument("--precip-factor-max", type=float, default=DEFAULT_FACTOR_MAX)
     args = parser.parse_args()
     snapshot = datetime.combine(date.fromisoformat(args.date), datetime.min.time(), timezone.utc).replace(hour=args.snapshot_hour)
-    paths = run_comparison(
+    paths = run_terrain_comparison(
         snapshot, args.bbox, args.dem, args.slope, args.aspect,
         args.output_dir, args.cache_dir, args.spinup_days,
         processes=args.processes, batch_size=args.batch_size,
