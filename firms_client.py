@@ -150,6 +150,10 @@ class FirmsClient:
         self.cache_dir = Path(cache_dir)
         self.timeout = timeout
         self.session = session or requests.Session()
+        if session is None:
+            # FIRMS is contacted directly. This avoids a stale shell proxy
+            # preventing the local API from retrieving uncached observations.
+            self.session.trust_env = False
 
     def _get_csv(self, url: str) -> pd.DataFrame:
         cache_key = sha256(url.encode("utf-8")).hexdigest()

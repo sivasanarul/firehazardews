@@ -36,8 +36,7 @@
 
   function setStatus(message, state = 'ready') {
     setText('status', message);
-    $('map-status').hidden = false;
-    $('map-status').dataset.state = state;
+    $('status').dataset.state = state;
   }
   function refreshActions() {
     const settings = currentPanel === 'explore';
@@ -79,7 +78,7 @@
     setText('step-caption', `STEP ${index + 1} OF 3`);
     setText('step-title', guide.title);
     setText('step-description', guide.description);
-    setText('form-hint', guide.hint);
+    setText('status', guide.hint);
     if (index < 2) setText('next-step-label', guide.next);
     if (index > 0) setText('previous-step', index === 1 ? 'Back to area' : 'Back to dates');
     if (index === 2) setText('setup-summary', `${$('region').value === 'zambia' ? 'Zambia' : 'Custom area'} · ${dateLabel($('start').value)} – ${dateLabel($('end').value)}`);
@@ -97,7 +96,7 @@
       else validateDates();
       showStep(Math.min(2, setupStep + 1), true);
     } catch (error) {
-      setText('form-hint', error.message);
+      setText('status', error.message);
       setStatus(error.message, 'error');
       if (setupStep === 0) {
         $('bbox').closest('details').open = true;
@@ -120,8 +119,8 @@
       $(panel + '-tab').tabIndex = active ? 0 : -1;
     }
     refreshActions();
-    if (name === 'activity') setText('form-hint', 'Select an observation to find it on the map.');
-    else setText('form-hint', fullControls ? 'Change any setting, then update the map.' : guidance[setupStep].hint);
+    if (name === 'activity') setText('status', 'Select an observation to find it on the map.');
+    else setText('status', fullControls ? 'Change any setting, then update the map.' : guidance[setupStep].hint);
   }
   for (const name of ['explore', 'activity']) {
     $(name + '-tab').addEventListener('click', () => setPanel(name));
@@ -169,7 +168,7 @@
   }
   const map = L.map('map', {preferCanvas: true, zoomControl: false, minZoom: 2, worldCopyJump: true}).setView([-13.2, 27.8], 6);
   L.control.zoom({position: 'topright'}).addTo(map);
-  L.control.scale({position: 'bottomleft', imperial: false}).addTo(map);
+  L.control.scale({position: 'bottomright', imperial: false}).addTo(map);
   const base = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
   base.on('tileerror', () => { if (!busy && !loaded) setStatus('Some basemap tiles could not load. Check your connection or try zooming out.', 'error'); });
   // Leaflet.heat 0.2.0 has no opacity setter or custom-pane support.
@@ -189,13 +188,12 @@
     selectedBounds = readBounds();
     if (areaOutline) map.removeLayer(areaOutline);
     areaOutline = L.rectangle(selectedBounds, {color: '#536f55', weight: 1, dashArray: '5 6', fill: false, interactive: false}).addTo(map);
-    setText('area-label', $('region').value === 'zambia' ? 'Zambia' : 'Custom area');
     refreshHeaderContext();
     if (fit) map.fitBounds(selectedBounds, {padding: [40, 40]});
   }
   updateArea(true);
   new ResizeObserver(() => map.invalidateSize()).observe($('map'));
-  function dirty() { if (!busy) setText('form-hint', fullControls ? 'Settings changed. Update the map to apply.' : setupStep === 2 ? 'Settings changed. Load your map to apply.' : guidance[setupStep].hint); }
+  function dirty() { if (!busy) setText('status', fullControls ? 'Settings changed. Update the map to apply.' : setupStep === 2 ? 'Settings changed. Load your map to apply.' : guidance[setupStep].hint); }
   form.addEventListener('input', dirty);
   form.addEventListener('change', dirty);
   $('region').addEventListener('change', () => {
@@ -350,7 +348,7 @@
       bounds = readBounds();
     } catch (error) {
       setPanel('explore'); showStep(0);
-      setStatus(error.message, 'error'); setText('form-hint', error.message);
+      setStatus(error.message, 'error'); setText('status', error.message);
       $('bbox').closest('details').open = true;
       if (matchMedia('(max-width: 900px)').matches) sidebar(true);
       $('bbox').focus();
@@ -360,7 +358,7 @@
       validateDates();
     } catch (error) {
       setPanel('explore'); showStep(1);
-      setStatus(error.message, 'error'); setText('form-hint', error.message);
+      setStatus(error.message, 'error'); setText('status', error.message);
       if (matchMedia('(max-width: 900px)').matches) sidebar(true);
       $('end').focus();
       return;
@@ -372,7 +370,7 @@
     const mode = $('fire-display').value;
     for (const el of form.querySelectorAll('input,select,button')) el.disabled = true;
     $('load').setAttribute('aria-busy', 'true');
-    setText('load-label', 'Loading observations…'); setText('form-hint', 'Connecting to your selected data sources…');
+    setText('load-label', 'Loading observations…'); setText('status', 'Connecting to your selected data sources…');
     sidebar(false);
     for (const layer of overlays.values()) map.removeLayer(layer);
     overlays.clear(); layerStates.clear(); resetResults(); renderLegend();
@@ -423,7 +421,7 @@
       if (loaded) setPanel('activity');
       else setPanel('explore');
       const errors = [...layerStates.values()].some(item => item.error);
-      setText('form-hint', errors ? 'Some data could not load. See the map status.' : loaded ? loaded.data.features.length ? 'Select an observation to find it on the map.' : 'No observations returned. Adjust your area or dates.' : tasks.length ? 'Map updated. Adjust your selection to explore.' : 'Select at least one layer to explore.');
+      setText('status', errors ? 'Some data could not load. Review the settings and try again.' : loaded ? loaded.data.features.length ? 'Select an observation to find it on the map.' : 'No observations returned. Adjust your area or dates.' : tasks.length ? 'Map updated. Adjust your selection to explore.' : 'Select at least one layer to explore.');
       selectionChanged(); renderLegend(); refreshStatus();
     }
   });

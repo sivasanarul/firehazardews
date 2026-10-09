@@ -31,7 +31,7 @@
     <div class="tabs" id="workspace-tabs" role="tablist" aria-label="Workspace panel" hidden><button type="button" id="explore-tab" class="tab active" role="tab" aria-selected="true" aria-controls="explore-panel"><svg><use href="#i-map"/></svg>Map settings</button><button type="button" id="activity-tab" class="tab" role="tab" aria-selected="false" aria-controls="activity-panel" tabindex="-1"><svg><use href="#i-activity"/></svg>Results<span id="results-badge">0</span></button></div>
     <form id="controls">
       <div class="sidebar-scroll" id="explore-panel" role="tabpanel" aria-labelledby="explore-tab">
-        <div class="full-settings-heading" id="full-settings-heading" hidden><span class="eyebrow">MAP SETTINGS</span><h2 tabindex="-1">Adjust your map</h2><p>Change any setting, then update the map.</p></div>
+        <div class="full-settings-heading" id="full-settings-heading" hidden><h2 tabindex="-1">Adjust your map</h2><p>Change any setting, then update the map.</p></div>
         <div class="setup-intro" id="setup-intro"><span class="eyebrow" id="step-caption">STEP 1 OF 3</span><h2 id="step-title" tabindex="-1">Where would you like to explore?</h2><p id="step-description">Start with Zambia, or use the map to choose your own area.</p></div>
         <nav class="setup-steps" id="setup-steps" aria-label="Map setup steps"><button id="area-step-link" type="button" data-go-step="0" aria-current="step" aria-controls="area-step"><span>1</span>Area</button><button id="dates-step-link" type="button" data-go-step="1" aria-controls="dates-step" disabled><span>2</span>Dates</button><button id="layers-step-link" type="button" data-go-step="2" aria-controls="layers-step" disabled><span>3</span>Layers</button></nav>
         <section class="control-section setup-step" id="area-step" data-step="0" aria-label="Choose an area">
@@ -71,15 +71,14 @@
         <dl class="results-summary" aria-label="Loaded observations"><div><dt id="count-label">Fire detections</dt><dd id="detection-count">—</dd></div><div><dt>Maximum fire power</dt><dd><span id="max-frp">—</span> <small>MW</small></dd></div><div><dt>Period</dt><dd><span id="period-days">—</span> <small>days</small></dd></div></dl>
         <p id="results-description" class="field-note">Load a fire layer to explore detections in your selected area.</p><div id="results-list"><div class="results-empty"><h3>No observations loaded</h3><p>Choose your map settings, then select Explore map.</p></div></div>
       </div>
-      <div class="sidebar-footer"><p id="form-hint" role="status" aria-live="polite">Next, choose when to look for fire activity.</p><button id="next-step" class="primary-button" type="button"><span id="next-step-label">Continue to dates</span><svg><use href="#i-arrow"/></svg></button><button id="load" class="primary-button" type="submit" hidden><span id="load-label">Explore map</span><svg><use href="#i-arrow"/></svg></button><button id="edit-settings" class="primary-button" type="button" hidden>Adjust map settings<svg><use href="#i-arrow"/></svg></button><button id="previous-step" class="back-button" type="button" hidden>Back to area</button></div>
+      <div class="sidebar-footer"><p id="status" role="status" aria-live="polite">Next, choose when to look for fire activity.</p><button id="next-step" class="primary-button" type="button"><span id="next-step-label">Continue to dates</span><svg><use href="#i-arrow"/></svg></button><button id="load" class="primary-button" type="submit" hidden><span id="load-label">Explore map</span><svg><use href="#i-arrow"/></svg></button><button id="edit-settings" class="primary-button" type="button" hidden>Adjust map settings<svg><use href="#i-arrow"/></svg></button><button id="previous-step" class="back-button" type="button" hidden>Back to area</button></div>
     </form>
   </aside>
   <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Close controls" hidden></button>
   <main id="workspace" tabindex="-1">
     <div class="map-workspace"><div id="map" aria-label="Interactive fire monitoring map"></div>
-      <div class="map-topbar"><div class="area-chip"><svg><use href="#i-pin"/></svg><span id="area-label">Zambia</span></div><button id="fit-area" class="map-button" type="button"><svg><use href="#i-target"/></svg><span>Fit to area</span></button></div>
+      <div class="map-navigation-tools"><button id="fit-area" class="map-button" type="button" aria-label="Fit map to monitoring area" title="Fit map to monitoring area"><svg><use href="#i-target"/></svg></button></div>
       <details class="map-legend" id="map-legend" hidden><summary><svg><use href="#i-layers"/></svg>Map legend<span>+</span></summary><div id="legend-content"><p>Load layers to see their legend.</p></div></details>
-      <div class="map-status" id="map-status" hidden><span class="status-indicator"></span><span id="status" role="status" aria-live="polite">Ready to choose your area.</span></div>
       <button class="primary-button mobile-start" id="start-setup" type="button">Get started<svg><use href="#i-arrow"/></svg></button>
     </div>
   </main>

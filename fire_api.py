@@ -12,6 +12,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 try:
     from .burned_area_client import BurnedAreaError, get_burned_area_tile
@@ -47,6 +48,7 @@ except ImportError:  # Allow: python slim_fire/fire_api.py
 
 app = FastAPI(title="SLIM Fire API", version="0.1.0")
 app.add_middleware(GZipMiddleware, minimum_size=1_000)
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 
 @app.get("/", include_in_schema=False)

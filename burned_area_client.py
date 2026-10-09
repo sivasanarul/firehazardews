@@ -67,7 +67,11 @@ def get_burned_area_tile(
         return cache_path.read_bytes()
 
     try:
-        response = requests.get(GWIS_WMS_URL, params=params, timeout=timeout)
+        session = requests.Session()
+        # GWIS is contacted directly. A stale shell proxy must not make map
+        # tiles unavailable to the local application.
+        session.trust_env = False
+        response = session.get(GWIS_WMS_URL, params=params, timeout=timeout)
         response.raise_for_status()
     except requests.RequestException as exc:
         raise BurnedAreaError(f"Could not retrieve GWIS burned area: {exc}") from exc
