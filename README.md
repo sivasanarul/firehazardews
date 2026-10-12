@@ -24,8 +24,7 @@ Example request:
 http://localhost:8000/api/fires?bbox=21.9,-18.1,33.8,-8.2&start=2025-07-01&end=2025-07-15&sensor=all
 ```
 
-Open `http://localhost:8000/map` for an interactive Leaflet map. The root URL
-redirects to the same viewer. Choose `15-day event polygons` to cluster nearby
+Open `http://localhost:8000/map` for an interactive Leaflet map. The root URL opens the scenario landing page. Choose `15-day event polygons` to cluster nearby
 detections into buffered event hulls. These polygons summarize detection
 clusters and must not be interpreted as measured burned-area perimeters.
 
@@ -62,8 +61,11 @@ Valid sensor values are `all`, `modis`, `viirs_snpp`, `viirs_noaa20`, and
 default `.cache/firms` and `data/fires` directories.
 ## Monitoring workspace
 
-The `/map` workspace uses a responsive sidebar and a full-height map. On small
-screens, open the menu to adjust filters. **Use current map extent** selects a
+The `/map` workspace uses a full-viewport map with controls docked to the left
+and a full-width top header containing context, scenario links, and actions.
+The menu toggle lives in the control card's heading, which stays visible when the
+card is collapsed; settings and results are retained. On small
+screens, controls open as a bottom sheet. **Use current map extent** selects a
 custom area without entering coordinates; geographic coordinates remain
 available under the area settings. Recent-date shortcuts use the browser's
 local calendar. The default historical period remains July 1–15, 2025.
@@ -73,9 +75,9 @@ visible at a time. Continue validates the current step; Back and completed step
 links retain the chosen settings. The default fire layer can be loaded with
 **Explore map**; environmental layers sit under an optional section. Pressing
 Enter on an early step advances the guide without downloading observations.
-On mobile, **Get started** opens the guide and resumes the current step.
+On mobile, the collapsed **Map workspace** menu opens the guide and resumes the current step.
 
-The forest-green panel and orange accents preserve the original design.
+Warm light panels, forest-green text, and orange actions match the landing page.
 Sensor options and geographic coordinates are collapsed by default; extra
 layer controls appear when their layer is selected. After fire data loads,
 the **Results** tab, export action, and map legend become available. Results
@@ -106,3 +108,43 @@ npm test --prefix tests/ui
 These checks cover loading, validation, partial failures, result navigation,
 opacity, empty states, guided navigation, and mobile control visibility. They do not replace a
 visual browser review.
+
+
+## Scenario landing page
+
+The root URL (`/`) introduces three workflows from the EWS brief. Each opens the
+existing map design with scenario-specific guidance and layer defaults:
+
+- `/map?scenario=prevention`: Prevention & preparedness; land cover and fuel.
+- `/map?scenario=response`: Detection & response; FIRMS detections, preserving the original workflow.
+- `/map?scenario=restoration`: Restoration & adaptation; burned area and land cover.
+
+`/map` and unknown scenario values default to detection and response. The header's
+**All scenarios** link returns to the landing page. No observation data loads until
+**Explore map** is selected. All existing layers remain selectable in each scenario.
+
+Both pages load `static/design.css` for shared colours, typography, scenario accents,
+and responsive refinements. `static/floating-map.css` adds the floating layout and
+light control surfaces while retaining the original map styles in `map.css`.
+Prepare / Respond / Restore links open another scenario with
+its default settings; the current scenario is marked for screen readers. Future
+modules appear after the map setup, and SLIM branding sits at the bottom of each page.
+
+The shared catalogue in `static/scenarios.js` supplies landing cards and map
+roadmaps. Greyed roadmap entries are informational and cannot load data. **Planned**
+includes the brief's future prototype modules and integrations still needed by this
+viewer (hazard/recovery rasters, risk assessment, monthly/yearly summaries).
+**Concept** covers sensors, emissions, and carbon. Risk assessment is **Planned**.
+Existing GWIS burned-area tiles are not presented as completed monthly/annual
+analysis. Emissions retains the brief's uncertainty about its scope.
+
+The hero cycle links directly to each scenario. Hovering or keyboard-focusing a
+cycle link or scenario card highlights its counterpart and previews the stage in
+the cycle's centre. The cycle is also available on mobile. `static/interactions.css`
+adds brief entrance and control transitions, with reduced-motion support.
+The map header reports actual loading, ready, unapplied changes, and error states;
+its activity line runs only while data requests or map tiles are pending.
+
+Run `node tests/ui/workspace.test.cjs` if the environment blocks the test runner's
+child process. Tests mock data and Leaflet; a connected browser is still needed for
+visual layout and real tile review.

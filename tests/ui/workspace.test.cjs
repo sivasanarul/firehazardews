@@ -11,8 +11,8 @@ const point = (properties = {}) => ({type: 'Feature', geometry: {type: 'Point', 
 const collection = (...features) => ({type: 'FeatureCollection', features});
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-function setup(t, responses = {}, {mobile = false, noLeaflet = false} = {}) {
-  const dom = new JSDOM(html, {url: 'http://localhost/map', runScripts: 'outside-only'});
+function setup(t, responses = {}, {mobile = false, noLeaflet = false, scenario = ''} = {}) {
+  const dom = new JSDOM(html, {url: 'http://localhost/map' + (scenario ? '?scenario=' + scenario : ''), runScripts: 'outside-only'});
   const {window} = dom;
   t.after(() => window.close());
   const $ = id => window.document.getElementById(id);
@@ -50,6 +50,8 @@ function setup(t, responses = {}, {mobile = false, noLeaflet = false} = {}) {
     const data = typeof response === 'function' ? await response() : response;
     return {ok: !data?.error, status: data?.error ? 502 : 200, json: async () => data?.error ? {detail: data.error} : data || (pathname.endsWith('/style') ? {entries: [], opacity: .8} : collection(point()))};
   };
+  window.eval(fs.readFileSync(path.join(root, 'static/scenarios.js'), 'utf8'));
+  window.eval(fs.readFileSync(path.join(root, 'static/scenario-map.js'), 'utf8'));
   window.eval(script);
   const change = (id, value) => {if (typeof value === 'boolean') $(id).checked = value; else $(id).value = value; $(id).dispatchEvent(new window.Event('change', {bubbles: true}));};
   const submit = async () => {
@@ -193,6 +195,33 @@ test('mobile controls are inaccessible when closed and support Escape', t => {
   assert.equal($('sidebar-backdrop').hidden, true);
 });
 
+test('floating desktop controls collapse and resume without clearing settings or results', async t => {
+  const {$, window, submit, change, calls, mapCalls} = setup(t);
+  assert.equal($('sidebar').inert, false);
+  assert.equal($('menu-toggle').getAttribute('aria-expanded'), 'true');
+  assert.equal($('sidebar-backdrop').hidden, true);
+  const initialFit = mapCalls.find(call => call[0] === 'fitBounds');
+  assert.ok(initialFit[2].paddingTopLeft[0] > 360);
+  change('start', '2025-07-02');
+  $('next-step').click();
+  $('menu-toggle').click();
+  assert.equal($('sidebar').inert, true);
+  assert.equal(window.document.activeElement, $('menu-toggle'));
+  assert.equal($('menu-toggle').getAttribute('aria-expanded'), 'false');
+  $('menu-toggle').click();
+  assert.equal($('dates-step').hidden, false);
+  assert.equal($('start').value, '2025-07-02');
+  await submit();
+  assert.equal($('sidebar').inert, false);
+  const requestCount = calls.length;
+  const resultCount = $('detection-count').textContent;
+  $('menu-toggle').click();
+  $('menu-toggle').click();
+  assert.equal($('activity-panel').hidden, false);
+  assert.equal($('detection-count').textContent, resultCount);
+  assert.equal(calls.length, requestCount);
+});
+
 test('missing Leaflet produces an actionable error', t => {
   const {$} = setup(t, {}, {noLeaflet: true});
   assert.equal($('load').disabled, true);
@@ -287,13 +316,111 @@ test('exploring without a fire layer still leaves every setting available', asyn
   assert.equal($('load').hidden, false);
 });
 
-test('the mobile Get started action opens the current setup step', t => {
+test('the mobile menu toggle remains available and resumes the current setup step', t => {
   const {$, window} = setup(t, {}, {mobile: true});
-  $('start-setup').click();
+  assert.equal($('menu-window').contains($('menu-toggle')), true);
+  assert.equal($('sidebar').contains($('menu-toggle')), false);
+  $('menu-toggle').click();
   assert.equal($('sidebar').inert, false);
   assert.equal(window.document.activeElement, $('step-title'));
   $('next-step').click();
   $('sidebar-backdrop').click();
-  $('start-setup').click();
+  $('menu-toggle').click();
   assert.equal($('dates-step').hidden, false);
+});
+
+
+test('landing page links to all three workspaces and labels unavailable modules', () => {
+  const dom = new JSDOM(fs.readFileSync(path.join(root, 'static/index.html'), 'utf8'), {runScripts: 'outside-only'});
+  dom.window.eval(fs.readFileSync(path.join(root, 'static/scenarios.js'), 'utf8'));
+  dom.window.eval(fs.readFileSync(path.join(root, 'static/landing.js'), 'utf8'));
+  const cards = [...dom.window.document.querySelectorAll('.scenario-card')];
+  assert.equal(cards.length, 3);
+  assert.ok(cards[1].querySelector('svg path[d*="M12 2v3"]'), 'detection card uses the response beacon');
+  assert.deepEqual(cards.map(card => card.querySelector('a').getAttribute('href')), ['/map?scenario=prevention', '/map?scenario=response', '/map?scenario=restoration']);
+  assert.ok(cards.every(card => card.querySelectorAll('.future-modules .badge').length >= 3));
+  assert.equal(dom.window.document.querySelectorAll('.future-modules button, .future-modules input').length, 0);
+  assert.equal(dom.window.document.querySelector('.site-header'), null);
+  assert.ok(dom.window.document.querySelector('img[src="/static/slim-logo.webp"]'));
+  dom.window.close();
+});
+
+for (const scenario of ['prevention', 'restoration']) {
+  test(`${scenario} loads relevant context without requesting fire detections or future modules`, async t => {
+    const {window, $, calls, submit, layers} = setup(t, {'/api/land-cover/selection': {year: 2024, resolution_m: 10}}, {scenario});
+    assert.equal($('fire-display').value, 'none');
+    assert.equal($('show-land-cover').checked, true);
+    assert.equal($('show-fuel').checked, scenario === 'prevention');
+    assert.equal($('show-burned-area').checked, scenario === 'restoration');
+    assert.equal($('selected-count').textContent, '2 selected');
+    assert.equal(window.document.querySelector('.context-settings').open, true);
+    assert.match(window.document.querySelector('.scenario-roadmap').textContent, /future features/i);
+    const navigation = window.document.querySelector('.scenario-navigation');
+    assert.equal(navigation.querySelectorAll('a').length, 3);
+    assert.equal(navigation.querySelector('[aria-current="page"]').getAttribute('href'), `/map?scenario=${scenario}`);
+    window.document.querySelector('.scenario-roadmap').open = true;
+    await flush();
+    assert.deepEqual(calls, ['/api/land-cover/style']);
+    await submit();
+    assert.ok(calls.some(url => url.startsWith('/api/land-cover/selection')));
+    assert.equal(calls.some(url => /fires|fire-events|recovery|hazard|propagation/.test(url)), false);
+    assert.ok(layers.some(layer => layer.url?.includes(scenario === 'prevention' ? '/api/fuel/' : '/api/burned-area/')));
+    assert.equal($('export').hidden, true);
+    assert.equal($('area-step').hidden, false);
+    assert.equal($('dates-step').hidden, false);
+    assert.equal($('layers-step').hidden, false);
+    assert.equal(window.document.querySelector('.scenario-home').getAttribute('href'), '/');
+  });
+}
+
+test('an unknown scenario safely falls back to the original detection workflow', t => {
+  const {window, $} = setup(t, {}, {scenario: 'unknown'});
+  assert.equal(window.document.body.dataset.scenario, 'response');
+  assert.equal($('fire-display').value, 'fires');
+  assert.equal($('selected-count').textContent, '1 selected');
+});
+
+test('cycle and cards respond to pointer and keyboard focus without changing navigation', t => {
+  const dom = new JSDOM(fs.readFileSync(path.join(root, 'static/index.html'), 'utf8'), {url: 'http://localhost/', runScripts: 'outside-only'});
+  t.after(() => dom.window.close());
+  const {window} = dom;
+  window.eval(fs.readFileSync(path.join(root, 'static/scenarios.js'), 'utf8'));
+  window.eval(fs.readFileSync(path.join(root, 'static/landing.js'), 'utf8'));
+  const doc = window.document;
+  const response = doc.querySelector('.cycle-label[data-scenario="response"]');
+  const card = doc.querySelector('.scenario-card.response');
+  response.dispatchEvent(new window.Event('pointerenter'));
+  assert.equal(card.classList.contains('is-active'), true);
+  assert.equal(doc.getElementById('cycle-word').textContent, 'Respond');
+  assert.equal(response.getAttribute('href'), '/map?scenario=response');
+  response.dispatchEvent(new window.Event('pointerleave'));
+  assert.equal(card.classList.contains('is-active'), false);
+  const restoration = doc.querySelector('.scenario-card.restoration .open-scenario');
+  restoration.focus();
+  assert.equal(doc.querySelector('.cycle').dataset.active, 'restoration');
+  assert.equal(doc.getElementById('cycle-word').textContent, 'Restore');
+  restoration.blur();
+  assert.equal(doc.getElementById('cycle-word').textContent, 'resilience');
+  assert.equal(window.location.pathname, '/');
+});
+
+test('header feedback follows actual pending requests, unsaved settings, and failures', async t => {
+  let release;
+  let fail = false;
+  const {$, window, submit, change} = setup(t, {'/api/fires': () => fail ? {error: 'Source unavailable'} : new Promise(resolve => { release = resolve; })});
+  assert.equal($('workspace-state').textContent, 'No layers loaded');
+  const pending = submit();
+  await flush();
+  assert.equal($('workspace-state').textContent, 'Loading map');
+  assert.equal(window.document.body.classList.contains('map-loading'), true);
+  release(collection(point()));
+  await pending;
+  assert.equal($('workspace-state').textContent, 'Map ready');
+  assert.equal(window.document.body.classList.contains('map-loading'), false);
+  change('end', '2025-07-16');
+  assert.equal($('workspace-state').textContent, 'Changes not applied');
+  fail = true;
+  await submit();
+  assert.equal($('workspace-state').textContent, 'Needs attention');
+  assert.equal(window.document.body.classList.contains('map-loading'), false);
 });

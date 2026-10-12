@@ -1362,3 +1362,22 @@ dialog .help-note {
     transition: none !important;
   }
 }
+
+/* Scenario navigation extends the original map workspace. */
+.scenario-home { color: #52654f; font-size: 12px; white-space: nowrap; text-decoration: none; padding: 9px 5px; }
+.scenario-home:hover { text-decoration: underline; }
+.scenario-context { padding: 22px 0 0; }
+.scenario-context .eyebrow { font-size: 9px; letter-spacing: 1px; color: #b8c8ae; }
+.scenario-context h2 { font-size: 17px; font-weight: 500; margin: 9px 0; }
+.scenario-context > p:not(.eyebrow) { font-size: 11px; line-height: 1.6; color: #b1c1ac; }
+.scenario-roadmap { margin-top: 14px; background: #f1f3ee; border: 1px solid #e0e5d9; border-radius: 5px; color: #66735f; }
+.scenario-roadmap summary { padding: 11px; font-size: 11px; }
+.scenario-roadmap summary span { float: right; font-size: 10px; }
+.scenario-roadmap > p { padding: 0 12px 9px; font-size: 10px; line-height: 1.5; }
+.scenario-roadmap ul { padding: 0 12px; margin: 0; list-style: none; }
+.scenario-roadmap li { display: flex; gap: 8px; justify-content: space-between; padding: 11px 0; border-top: 1px solid #dce2d5; }
+.scenario-roadmap strong { font-weight: 500; font-size: 11px; }
+.scenario-roadmap small { display: block; font-size: 10px; margin-top: 4px; line-height: 1.5; }
+.scenario-roadmap li > span { align-self: start; border: 1px solid #d1d9c9; border-radius: 3px; font-size: 9px; padding: 3px 5px; }
+@media (max-width: 1100px) { .header-context { display: none; } .workspace-title h1 { font-size: 17px; } }
+@media (max-width: 600px) { .workspace-title h1 { font-size: 13px; max-width: 160px; } .scenario-home { font-size: 10px; } .header-actions { gap: 3px; } }

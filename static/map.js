@@ -5,6 +5,7 @@
   const form = $('controls');
   const defaultBbox = '21.9,-18.1,33.8,-8.2';
   let busy = false;
+  let settingsDirty = false;
   let loaded = null;
   let generation = 0;
   let palette = [];
@@ -18,6 +19,12 @@
     {title: 'When would you like to look?', description: 'Choose a period to see the fire observations recorded during that time.', next: 'Continue to layers', hint: 'Next, choose what to show on the map.'},
     {title: 'What would you like to see?', description: 'Begin with fire detections. Add landscape context whenever you need it.', hint: 'Your map is ready. Load your selected observations.'}
   ];
+  if (window.SLIM_ACTIVE_SCENARIO?.id !== 'response' && window.SLIM_ACTIVE_SCENARIO) {
+    guidance[0].hint = 'Next, choose a period for the landscape layers.';
+    guidance[1].description = 'Choose the observation period for the available landscape layers.';
+    guidance[2].description = window.SLIM_ACTIVE_SCENARIO.note;
+    guidance[2].hint = 'Load the selected landscape layers. Future modules are preview only.';
+  }
   const overlays = new Map();
   const layerStates = new Map();
   const number = value => Number(value).toLocaleString(undefined, {maximumFractionDigits: 1});
@@ -37,6 +44,12 @@
   function setStatus(message, state = 'ready') {
     setText('status', message);
     $('status').dataset.state = state;
+    const loading = state === 'loading' || busy || [...layerStates.values()].some(item => item.pending);
+    const displayState = state === 'error' ? 'error' : loading ? 'loading' : settingsDirty ? 'dirty' : state;
+    document.body.dataset.mapState = displayState;
+    document.body.classList.toggle('map-loading', loading);
+    setText('workspace-state', displayState === 'error' ? 'Needs attention' : loading ? 'Loading map' : settingsDirty ? 'Changes not applied' : loaded || overlays.size ? 'Map ready' : 'No layers loaded');
+    $('workspace-state').title = message;
   }
   function refreshActions() {
     const settings = currentPanel === 'explore';
@@ -132,31 +145,43 @@
       $(next + '-tab').focus();
     });
   }
-  function sidebar(open, returnFocus = false) {
+  function sidebar(open, returnFocus = false, focus = true) {
+    const mobile = matchMedia('(max-width: 900px)').matches;
     $('sidebar').classList.toggle('open', open);
-    $('sidebar-backdrop').hidden = !open;
+    $('menu-window').classList.toggle('open', open);
+    document.body.classList.toggle('controls-open', open);
+    $('sidebar-backdrop').hidden = !open || !mobile;
     $('menu-toggle').setAttribute('aria-expanded', String(open));
-    $('sidebar').inert = matchMedia('(max-width: 900px)').matches && !open;
-    if (open) {
+    $('menu-toggle').setAttribute('aria-label', open ? 'Collapse map controls' : 'Open map controls');
+    $('menu-toggle').querySelector('use').setAttribute('href', open ? '#i-close' : '#i-menu');
+    $('sidebar').inert = !open;
+    if (open && focus) {
       if ($('workspace-tabs').hidden) $('step-title').focus();
       else $(currentPanel + '-tab').focus();
     }
     else if (returnFocus) $('menu-toggle').focus();
   }
-  $('menu-toggle').addEventListener('click', () => sidebar(!$('sidebar').classList.contains('open')));
-  $('start-setup').addEventListener('click', () => { setPanel('explore'); sidebar(true); });
+  $('menu-toggle').addEventListener('click', () => sidebar(!$('sidebar').classList.contains('open'), true));
   $('sidebar-backdrop').addEventListener('click', () => sidebar(false, true));
   document.addEventListener('keydown', event => {
+    if ($('help-dialog').open) return;
     if (event.key === 'Escape' && $('sidebar').classList.contains('open')) sidebar(false, true);
     if (event.key === 'Tab' && $('sidebar').classList.contains('open') && matchMedia('(max-width: 900px)').matches) {
-      const focusable = [...$('sidebar').querySelectorAll('a,button,input,select,summary')].filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
+      const focusable = [...$('menu-window').querySelectorAll('a,button,input,select,summary')].filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
       const first = focusable[0], last = focusable.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     }
   });
-  matchMedia('(max-width: 900px)').addEventListener('change', () => sidebar(false));
-  sidebar(false);
+  matchMedia('(max-width: 900px)').addEventListener('change', event => sidebar(!event.matches, event.matches && $('sidebar').contains(document.activeElement), false));
+  sidebar(!matchMedia('(max-width: 900px)').matches, false, false);
+  const workspaceHeader = document.querySelector('.workspace-header');
+  function positionMenu() {
+    const bottom = workspaceHeader.getBoundingClientRect().bottom;
+    if (bottom) document.body.style.setProperty('--header-bottom', `${Math.ceil(bottom)}px`);
+  }
+  new ResizeObserver(positionMenu).observe(workspaceHeader);
+  positionMenu();
   $('help').addEventListener('click', () => $('help-dialog').showModal());
   $('close-help').addEventListener('click', () => $('help-dialog').close());
   $('help-dialog').addEventListener('click', event => { if (event.target === $('help-dialog')) { const r = event.target.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) event.target.close(); } });
@@ -176,6 +201,13 @@
   $('map').style.setProperty('--precip-opacity', '.5');
   let areaOutline;
   let selectedBounds;
+  function fitMapBounds(bounds, options = {}) {
+    const mobile = matchMedia('(max-width: 900px)').matches;
+    const panelWidth = $('sidebar').getBoundingClientRect().width || 360;
+    const left = !mobile && $('sidebar').classList.contains('open') ? panelWidth + 42 : 30;
+    const top = (workspaceHeader.getBoundingClientRect().bottom || 190) + 20;
+    map.fitBounds(bounds, {paddingTopLeft: [left, top], paddingBottomRight: [70, 60], ...options});
+  }
   function readBounds() {
     const parts = $('bbox').value.split(',');
     const values = parts.map(value => value.trim() === '' ? NaN : Number(value));
@@ -189,11 +221,15 @@
     if (areaOutline) map.removeLayer(areaOutline);
     areaOutline = L.rectangle(selectedBounds, {color: '#536f55', weight: 1, dashArray: '5 6', fill: false, interactive: false}).addTo(map);
     refreshHeaderContext();
-    if (fit) map.fitBounds(selectedBounds, {padding: [40, 40]});
+    if (fit) fitMapBounds(selectedBounds);
   }
   updateArea(true);
   new ResizeObserver(() => map.invalidateSize()).observe($('map'));
-  function dirty() { if (!busy) setText('status', fullControls ? 'Settings changed. Update the map to apply.' : setupStep === 2 ? 'Settings changed. Load your map to apply.' : guidance[setupStep].hint); }
+  function dirty() {
+    if (busy) return;
+    settingsDirty = Boolean(loaded || overlays.size);
+    setStatus(fullControls ? 'Settings changed. Update the map to apply.' : setupStep === 2 ? 'Settings changed. Load your map to apply.' : guidance[setupStep].hint);
+  }
   form.addEventListener('input', dirty);
   form.addEventListener('change', dirty);
   $('region').addEventListener('change', () => {
@@ -238,6 +274,7 @@
     refreshHeaderContext();
   }
   for (const id of [...toggles, 'fire-display']) $(id).addEventListener('change', selectionChanged);
+  selectionChanged();
   for (const [id, key] of [['land-cover-opacity', 'land'], ['fuel-opacity', 'fuel'], ['precip-heatmap-opacity', 'rain']]) {
     $(id).addEventListener('input', event => {
       event.stopPropagation();
@@ -316,7 +353,7 @@
       const date = document.createElement('small'); date.textContent = String(p.acq_datetime_utc || p.start_time || p.interval_start || 'Time unavailable');
       const power = document.createElement('span'); const value = p[isEvents ? 'max_frp' : 'frp']; power.textContent = value != null && Number.isFinite(Number(value)) ? `${number(value)} MW` : 'View ↗';
       description.append(title, date); button.append(description, power);
-      button.addEventListener('click', () => { const layer = layers[index]; if (layer.getLatLng) map.setView(layer.getLatLng(), Math.max(map.getZoom(), 10)); else map.fitBounds(layer.getBounds(), {padding: [50, 50], maxZoom: 12}); layer.openPopup(); sidebar(false); });
+      button.addEventListener('click', () => { const layer = layers[index]; if (layer.getLatLng) map.setView(layer.getLatLng(), Math.max(map.getZoom(), 10)); else map.fitBounds(layer.getBounds(), {padding: [50, 50], maxZoom: 12}); layer.openPopup(); sidebar(false, true); });
       $('results-list').append(button);
     });
   }
@@ -365,16 +402,17 @@
     }
     enableFullControls();
     busy = true;
+    settingsDirty = false;
     const run = ++generation;
     const query = {bbox: $('bbox').value, start: $('start').value, end: $('end').value, sensor: $('sensor').value};
     const mode = $('fire-display').value;
     for (const el of form.querySelectorAll('input,select,button')) el.disabled = true;
     $('load').setAttribute('aria-busy', 'true');
-    setText('load-label', 'Loading observations…'); setText('status', 'Connecting to your selected data sources…');
-    sidebar(false);
+    setText('load-label', 'Loading observations…'); setStatus('Connecting to your selected data sources…', 'loading');
+    if (matchMedia('(max-width: 900px)').matches) sidebar(false, true);
     for (const layer of overlays.values()) map.removeLayer(layer);
     overlays.clear(); layerStates.clear(); resetResults(); renderLegend();
-    map.fitBounds(bounds, {padding: [40, 40]});
+    fitMapBounds(bounds);
     setText('period-days', Math.round((Date.parse(query.end) - Date.parse(query.start)) / 86400000) + 1);
     setText('loaded-period', `${dateLabel(query.start)} – ${dateLabel(query.end)}`);
     const tasks = [];
@@ -414,7 +452,6 @@
     try { await Promise.allSettled(tasks); }
     finally {
       busy = false;
-      if (overlays.size || loaded) $('start-setup').hidden = true;
       for (const el of form.querySelectorAll('input,select,button')) el.disabled = false;
       $('load').setAttribute('aria-busy', 'false');
       showStep(setupStep);

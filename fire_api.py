@@ -11,7 +11,7 @@ import geopandas as gpd
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 try:
@@ -51,9 +51,9 @@ app.add_middleware(GZipMiddleware, minimum_size=1_000)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 
-@app.get("/", include_in_schema=False)
-def index() -> RedirectResponse:
-    return RedirectResponse(url="/map")
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def index() -> str:
+    return (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
 
 
 @app.get("/map", response_class=HTMLResponse, include_in_schema=False)

@@ -3,15 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#172d29">
+  <meta name="theme-color" content="#f6f7f2">
   <title>SLIM · Fire monitoring workspace</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="/static/map.css">
+  <link rel="stylesheet" href="/static/design.css">
+  <link rel="stylesheet" href="/static/floating-map.css">
+  <link rel="stylesheet" href="/static/interactions.css">
 </head>
-<body>
+<body class="map-page floating-workspace">
   <a class="skip-link" href="#workspace">Skip to map workspace</a>
   <svg class="svg-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
     <symbol id="i-fire" viewBox="0 0 24 24"><path d="M13 3c1 5-5 6-3 10 1-2 3-3 4-4 0 3 5 4 5 8a7 7 0 0 1-14 0C5 11 12 10 13 3Z"/></symbol>
+    <symbol id="i-beacon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5.2 5.2l2.1 2.1m9.4 9.4 2.1 2.1m0-13.6-2.1 2.1m-9.4 9.4-2.1 2.1"/><circle cx="12" cy="12" r="6.5"/></symbol>
     <symbol id="i-map" viewBox="0 0 24 24"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2Zm6-2v16m6-14v16"/></symbol>
     <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 10 6-10 6L2 9Zm-9 11 9 5 9-5M3 18l9 5 9-5"/></symbol>
     <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
@@ -26,8 +30,18 @@
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
     <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6m10-6v6M3 11h18"/></symbol>
   </defs></svg>
-  <header class="workspace-header"><div class="workspace-title"><button id="menu-toggle" class="icon-button mobile-menu" type="button" aria-label="Open monitoring controls" aria-controls="sidebar" aria-expanded="false"><svg><use href="#i-menu"/></svg></button><a class="header-brand" href="/map" aria-label="SLIM fire monitor home"><img src="/static/slim-logo.webp" width="256" height="261" alt="SLIM — Sustainable Landscape through Integrated Management"></a><div><h1>Fire explorer</h1><p id="loaded-period">Begin with an area. We’ll guide you from there.</p></div></div><div class="header-context" id="header-context" aria-label="Current map selection" hidden><span><svg><use href="#i-pin"/></svg><span id="header-area">Zambia</span></span><span><svg><use href="#i-calendar"/></svg><span id="header-dates">Selected period</span></span><span><svg><use href="#i-layers"/></svg><span id="header-layers">1 layer</span></span></div><div class="header-actions"><button id="help" class="outline-button" type="button" aria-label="About the data"><svg><use href="#i-info"/></svg><span>Data guide</span></button><button id="export" class="outline-button" type="button" disabled hidden><svg><use href="#i-download"/></svg><span>Export GeoJSON</span></button></div></header>
-  <aside class="sidebar" id="sidebar" aria-label="Monitoring controls">
+  <header class="workspace-header">
+    <div class="workspace-title">
+      <span class="workspace-emblem" id="workspace-emblem" aria-hidden="true"></span>
+      <div class="workspace-heading"><div class="workspace-product">Fire early warning system</div><h1>Fire explorer</h1><p id="loaded-period">Begin with an area. We’ll guide you from there.</p></div>
+      <div class="header-actions"><span class="workspace-state" id="workspace-state">No layers loaded</span><a class="scenario-home" href="/"><svg aria-hidden="true"><use href="#i-arrow"/></svg>All scenarios</a><button id="help" class="outline-button" type="button" aria-label="About the data"><svg><use href="#i-info"/></svg><span>Data guide</span></button><button id="export" class="outline-button" type="button" disabled hidden><svg><use href="#i-download"/></svg><span>Export GeoJSON</span></button></div>
+    </div>
+    <section class="scenario-context" id="scenario-context" aria-label="Selected scenario"></section>
+    <div class="header-context" id="header-context" aria-label="Current map selection" hidden><span><svg><use href="#i-pin"/></svg><span id="header-area">Zambia</span></span><span><svg><use href="#i-calendar"/></svg><span id="header-dates">Selected period</span></span><span><svg><use href="#i-layers"/></svg><span id="header-layers">1 layer</span></span></div>
+  </header>
+  <aside class="floating-menu" id="menu-window" aria-label="Monitoring controls">
+    <div class="floating-panel-heading"><span>Map workspace</span><button id="menu-toggle" class="icon-button" type="button" aria-label="Open map controls" aria-controls="sidebar" aria-expanded="false"><svg aria-hidden="true"><use href="#i-menu"/></svg></button></div>
+    <div class="sidebar" id="sidebar">
     <div class="tabs" id="workspace-tabs" role="tablist" aria-label="Workspace panel" hidden><button type="button" id="explore-tab" class="tab active" role="tab" aria-selected="true" aria-controls="explore-panel"><svg><use href="#i-map"/></svg>Map settings</button><button type="button" id="activity-tab" class="tab" role="tab" aria-selected="false" aria-controls="activity-panel" tabindex="-1"><svg><use href="#i-activity"/></svg>Results<span id="results-badge">0</span></button></div>
     <form id="controls">
       <div class="sidebar-scroll" id="explore-panel" role="tabpanel" aria-labelledby="explore-tab">
@@ -73,18 +87,21 @@
       </div>
       <div class="sidebar-footer"><p id="status" role="status" aria-live="polite">Next, choose when to look for fire activity.</p><button id="next-step" class="primary-button" type="button"><span id="next-step-label">Continue to dates</span><svg><use href="#i-arrow"/></svg></button><button id="load" class="primary-button" type="submit" hidden><span id="load-label">Explore map</span><svg><use href="#i-arrow"/></svg></button><button id="edit-settings" class="primary-button" type="button" hidden>Adjust map settings<svg><use href="#i-arrow"/></svg></button><button id="previous-step" class="back-button" type="button" hidden>Back to area</button></div>
     </form>
+    <div class="sidebar-brand"><img src="/static/slim-logo.webp" width="256" height="261" alt="SLIM"><span>Sustainable Landscape<br>through Integrated Management</span></div>
+    </div>
   </aside>
   <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Close controls" hidden></button>
   <main id="workspace" tabindex="-1">
     <div class="map-workspace"><div id="map" aria-label="Interactive fire monitoring map"></div>
       <div class="map-navigation-tools"><button id="fit-area" class="map-button" type="button" aria-label="Fit map to monitoring area" title="Fit map to monitoring area"><svg><use href="#i-target"/></svg></button></div>
       <details class="map-legend" id="map-legend" hidden><summary><svg><use href="#i-layers"/></svg>Map legend<span>+</span></summary><div id="legend-content"><p>Load layers to see their legend.</p></div></details>
-      <button class="primary-button mobile-start" id="start-setup" type="button">Get started<svg><use href="#i-arrow"/></svg></button>
     </div>
   </main>
   <dialog id="help-dialog" aria-labelledby="help-title"><button class="icon-button dialog-close" id="close-help" type="button" aria-label="Close data guide"><svg><use href="#i-close"/></svg></button><h2 id="help-title">About the data</h2><p>Follow the Area, Dates, and Layers steps, then select <strong>Explore map</strong>. After loading, select a fire marker for details or browse the Results tab. Use <strong>Adjust map settings</strong> to change your selection.</p><dl><dt>Fire detections · NASA FIRMS</dt><dd>Satellite thermal anomalies indicate possible fire activity. A detection is not a confirmed wildfire or a measure of burned area.</dd><dt>15-day event polygons</dt><dd>Buffered groups of nearby detections, not measured fire perimeters. Fire radiative power is shown in megawatts (MW).</dd><dt>Environmental layers</dt><dd>GWIS supplies burned area and vegetation fuel. SLIM land cover uses the year nearest your observation period. Precipitation uses the selected window ending on your “To” date.</dd></dl><p class="help-note">Availability depends on the source and period. Missing data and failed requests are reported in the workspace; they do not imply an absence of fire.</p></dialog>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <script src="/static/scenarios.js"></script>
+  <script src="/static/scenario-map.js"></script>
   <script src="/static/map.js"></script>
 </body>
 </html>
