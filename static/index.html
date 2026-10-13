@@ -1,37 +1,109 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f6f7f2">
-  <title>SLIM · Fire early warning system</title>
-  <link rel="stylesheet" href="/static/landing.css">
-  <link rel="stylesheet" href="/static/design.css">
-  <link rel="stylesheet" href="/static/interactions.css">
-</head>
-<body class="landing">
-  <a class="skip-link" href="#scenarios">Skip to scenarios</a>
-  <main>
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <p class="eyebrow">ZAMBIA · LANDSCAPE INTELLIGENCE</p>
-        <h1 id="hero-title">Fire early<br><em>warning system</em></h1>
-        <p class="hero-purpose">From preparedness to recovery.</p>
-        <p class="hero-description">Explore fire activity and the landscapes it affects.<br class="desktop-break"> Choose a scenario to begin your map workspace.</p>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f6f7f2" />
+    <title>SLIM · Fire early warning system</title>
+    <link rel="stylesheet" href="/static/landing.css" />
+    <link rel="stylesheet" href="/static/design.css" />
+    <link rel="stylesheet" href="/static/interactions.css" />
+    <link rel="stylesheet" href="/static/theme.css" />
+  </head>
+  <body class="landing">
+    <a class="skip-link" href="#scenarios">Skip to scenarios</a>
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">ZAMBIA · LANDSCAPE INTELLIGENCE</p>
+          <h1 id="hero-title">Fire early<br /><em>warning system</em></h1>
+          <p class="hero-purpose">From preparedness to recovery.</p>
+          <p class="hero-description">
+            Explore fire activity and the landscapes it affects.<br
+              class="desktop-break"
+            />
+            Choose a scenario to begin your map workspace.
+          </p>
+        </div>
+        <nav class="cycle" aria-label="Explore the fire management cycle">
+          <div class="orbit orbit-one" aria-hidden="true"></div>
+          <div class="orbit orbit-two" aria-hidden="true"></div>
+          <div class="orbit orbit-three" aria-hidden="true"></div>
+          <span class="cycle-center" aria-hidden="true"
+            ><span id="cycle-kicker">Fire</span><br /><span id="cycle-word"
+              >resilience</span
+            ></span
+          >
+          <a
+            class="cycle-label before"
+            data-scenario="prevention"
+            href="/map?scenario=prevention"
+            aria-label="Explore Prevention & preparedness"
+            >01 / Prepare</a
+          ><a
+            class="cycle-label during"
+            data-scenario="response"
+            href="/map?scenario=response"
+            aria-label="Explore Detection & response"
+            >02 / Respond</a
+          ><a
+            class="cycle-label after"
+            data-scenario="restoration"
+            href="/map?scenario=restoration"
+            aria-label="Explore Restoration & adaptation"
+            >03 / Restore</a
+          >
+          <span class="cycle-hint" aria-hidden="true"
+            >Three stages. One connected landscape.</span
+          >
+        </nav>
+      </section>
+      <section id="scenarios" aria-labelledby="scenario-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">CHOOSE YOUR WORKFLOW</p>
+            <h2 id="scenario-heading">What would you like to explore?</h2>
+          </div>
+          <p>01 Choose a scenario <span>→</span> 02 Explore the map</p>
+        </div>
+        <div class="scenario-grid" id="scenario-grid"></div>
+      </section>
+      <section class="demo-note" aria-label="About this demo">
+        <div>
+          <h2>A working explorer. A view of what comes next.</h2>
+          <p>
+            Available layers open in the map. Greyed modules preview future
+            capabilities and do not produce results.
+          </p>
+        </div>
+        <div class="status-key">
+          <span><i class="available-dot"></i>Available now</span
+          ><span><i></i>Planned · future prototype</span
+          ><span><i class="concept-dot"></i>Concept · under consideration</span>
+        </div>
+      </section>
+      <noscript
+        ><p>
+          Choose a workspace:
+          <a href="/map?scenario=prevention">Prevention & preparedness</a> ·
+          <a href="/map?scenario=response">Detection & response</a> ·
+          <a href="/map?scenario=restoration">Restoration & adaptation</a>.
+          JavaScript is required for the interactive map.
+        </p></noscript
+      >
+    </main>
+    <footer>
+      <div class="footer-brand">
+        <img
+          src="/static/slim-logo.webp"
+          width="256"
+          height="261"
+          alt="SLIM"
+        /><span>Sustainable Landscape<br />through Integrated Management</span>
       </div>
-      <nav class="cycle" aria-label="Explore the fire management cycle">
-        <div class="orbit orbit-one" aria-hidden="true"></div><div class="orbit orbit-two" aria-hidden="true"></div><div class="orbit orbit-three" aria-hidden="true"></div>
-        <span class="cycle-center" aria-hidden="true"><span id="cycle-kicker">Fire</span><br><span id="cycle-word">resilience</span></span>
-        <a class="cycle-label before" data-scenario="prevention" href="/map?scenario=prevention" aria-label="Explore Prevention & preparedness">01 / Prepare</a><a class="cycle-label during" data-scenario="response" href="/map?scenario=response" aria-label="Explore Detection & response">02 / Respond</a><a class="cycle-label after" data-scenario="restoration" href="/map?scenario=restoration" aria-label="Explore Restoration & adaptation">03 / Restore</a>
-        <span class="cycle-hint" aria-hidden="true">Three stages. One connected landscape.</span>
-      </nav>
-    </section>
-    <section id="scenarios" aria-labelledby="scenario-heading"><div class="section-heading"><div><p class="eyebrow">CHOOSE YOUR WORKFLOW</p><h2 id="scenario-heading">What would you like to explore?</h2></div><p>01 Choose a scenario <span>→</span> 02 Explore the map</p></div><div class="scenario-grid" id="scenario-grid"></div></section>
-    <section class="demo-note" aria-label="About this demo"><div><h2>A working explorer. A view of what comes next.</h2><p>Available layers open in the map. Greyed modules preview future capabilities and do not produce results.</p></div><div class="status-key"><span><i class="available-dot"></i>Available now</span><span><i></i>Planned · future prototype</span><span><i class="concept-dot"></i>Concept · under consideration</span></div></section>
-    <noscript><p>Choose a workspace: <a href="/map?scenario=prevention">Prevention & preparedness</a> · <a href="/map?scenario=response">Detection & response</a> · <a href="/map?scenario=restoration">Restoration & adaptation</a>. JavaScript is required for the interactive map.</p></noscript>
-  </main>
-  <footer><div class="footer-brand"><img src="/static/slim-logo.webp" width="256" height="261" alt="SLIM"><span>Sustainable Landscape<br>through Integrated Management</span></div><span>Zambia · Fire monitoring & landscape context</span></footer>
-  <script src="/static/scenarios.js"></script>
-  <script src="/static/landing.js"></script>
-</body>
+      <span>Zambia · Fire monitoring & landscape context</span>
+    </footer>
+    <script src="/static/scenarios.js"></script>
+    <script src="/static/landing.js"></script>
+  </body>
 </html>

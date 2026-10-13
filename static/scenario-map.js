@@ -11,7 +11,9 @@
     `<svg><use href="#i-${scenario.icon}"/></svg>`;
   const context = document.getElementById("scenario-context");
   const shortNames = ["Prepare", "Respond", "Restore"];
-  context.innerHTML = `<p class="eyebrow">SCENARIO ${scenario.number} · ${scenario.phase}</p><p>${scenario.description}</p><nav class="scenario-navigation" aria-label="Scenario workspaces">${window.SLIM_SCENARIOS.map((item, index) => `<a href="/map?scenario=${item.id}" aria-label="${item.title}" ${item.id === scenario.id ? 'aria-current="page"' : ""}>${item.number} ${shortNames[index]}</a>`).join("")}</nav>`;
+  // The header keeps only the scenario switcher; the descriptive copy lives on
+  // the landing page, so it is not repeated in the compact workspace header.
+  context.innerHTML = `<nav class="scenario-navigation" aria-label="Scenario workspaces">${window.SLIM_SCENARIOS.map((item, index) => `<a href="/map?scenario=${item.id}" aria-label="${item.title}" ${item.id === scenario.id ? 'aria-current="page"' : ""}>${item.number} ${shortNames[index]}</a>`).join("")}</nav>`;
   const roadmap = document.createElement("details");
   roadmap.className = "scenario-roadmap";
   roadmap.innerHTML = `<summary>Future features <span>${scenario.future.length} modules</span></summary><p>${scenario.note} These modules are preview only.</p><ul>${scenario.future.map(([name, detail, status]) => `<li><div><strong>${name}</strong><small>${detail}</small></div><span>${status}</span></li>`).join("")}</ul>`;

@@ -1,0 +1,1315 @@
+/* =====================================================================
+   SLIM — visual refresh layer
+   Loaded last on both pages; refines colour, type, depth and states while
+   keeping the existing markup and behaviour untouched.
+   ===================================================================== */
+
+:root {
+  --t-paper: #f2f4ec;
+  --t-surface: #ffffff;
+  --t-surface-soft: #f7f9f2;
+  --t-surface-sunken: #eef2e7;
+  --t-ink: #16332a;
+  --t-ink-soft: #3f5c50;
+  --t-muted: #6d7f74;
+  --t-line: #e2e8da;
+  --t-line-strong: #d0dac6;
+  --t-accent: #c96a34;
+  --t-accent-hover: #b75a26;
+  --t-accent-soft: #fbeee3;
+  --t-forest: #17322c;
+  --t-r-sm: 10px;
+  --t-r: 14px;
+  --t-r-lg: 20px;
+  --t-shadow-sm: 0 1px 2px #16332a0d, 0 3px 10px #16332a0a;
+  --t-shadow: 0 6px 16px #16332a0f, 0 18px 44px #16332a12;
+  --t-ring: 0 0 0 3px #c96a3438;
+}
+
+body {
+  font-family:
+    "Segoe UI",
+    "Inter",
+    system-ui,
+    -apple-system,
+    Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* =====================================================================
+   LANDING  ( / )
+   ===================================================================== */
+
+body.landing {
+  background: var(--t-paper);
+  background-image: radial-gradient(
+    120% 90% at 82% -10%,
+    #e7efe0 0%,
+    #f2f4ec 46%,
+    #f2f4ec 100%
+  );
+  color: var(--t-ink);
+}
+
+body.landing main {
+  max-width: 1280px;
+  padding: 0 6vw;
+}
+
+/* Hero ---------------------------------------------------------------- */
+body.landing .hero {
+  gap: 48px;
+  min-height: 440px;
+  padding: 88px 0 74px;
+  align-items: center;
+}
+body.landing .hero-copy {
+  max-width: 560px;
+}
+body.landing .hero .eyebrow,
+body.landing .eyebrow {
+  color: #6a7f66;
+  font-size: 11px;
+  letter-spacing: 1.6px;
+  font-weight: 700;
+}
+body.landing .hero h1 {
+  font-size: clamp(42px, 4.4vw, 62px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  color: var(--t-ink);
+}
+body.landing .hero h1 em {
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--t-accent);
+}
+body.landing .hero-purpose {
+  margin-top: 24px;
+  font-size: 19px;
+  color: var(--t-ink-soft);
+}
+body.landing .hero-description {
+  margin-top: 10px;
+  font-size: 15.5px;
+  line-height: 1.8;
+  color: var(--t-muted);
+}
+
+/* Cycle graphic ------------------------------------------------------- */
+body.landing .cycle {
+  margin-right: 12px;
+}
+body.landing .orbit {
+  border-color: #cbd9c6;
+}
+body.landing .cycle-label {
+  background: #f2f4ec;
+  color: #4d675a;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 8px 14px;
+  box-shadow: var(--t-shadow-sm);
+}
+body.landing .cycle-label::before {
+  background: currentColor;
+  width: 6px;
+  height: 6px;
+}
+body.landing .cycle-label.is-active,
+body.landing .cycle-label:hover {
+  background: #fff;
+  border-color: var(--scenario-accent);
+  color: var(--scenario-ink);
+  box-shadow: var(--t-shadow);
+}
+body.landing .cycle-center {
+  font-size: 22px;
+}
+body.landing #cycle-kicker {
+  color: var(--t-muted);
+  font-size: 12px;
+  letter-spacing: 0.3px;
+}
+body.landing #cycle-word {
+  font-family: Georgia, serif;
+  font-size: 27px;
+  font-style: italic;
+  color: var(--t-accent);
+}
+body.landing .cycle-hint {
+  color: #7d8c79;
+  font-size: 11.5px;
+}
+
+/* Section heading ----------------------------------------------------- */
+body.landing .section-heading {
+  padding-top: 34px;
+  margin-bottom: 30px;
+  border-top: 1px solid var(--t-line);
+  align-items: flex-end;
+}
+body.landing .section-heading h2 {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--t-ink);
+}
+body.landing .section-heading > p {
+  font-size: 11.5px;
+  color: var(--t-muted);
+  letter-spacing: 0.2px;
+}
+
+/* Scenario cards ------------------------------------------------------ */
+body.landing .scenario-grid {
+  gap: 24px;
+}
+body.landing .scenario-card {
+  position: relative;
+  padding: 30px;
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-r-lg);
+  background: var(--t-surface);
+  box-shadow: var(--t-shadow-sm);
+  overflow: hidden;
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+body.landing .scenario-card::before {
+  height: 5px;
+  background: var(--scenario-accent);
+}
+body.landing .scenario-card:hover,
+body.landing .scenario-card:focus-within {
+  border-color: var(--scenario-accent);
+  box-shadow: var(--t-shadow);
+  transform: translateY(-2px);
+}
+body.landing .scenario-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  background: var(--scenario-soft);
+  color: var(--scenario-ink);
+}
+body.landing .scenario-icon svg {
+  width: 24px;
+  height: 24px;
+}
+body.landing .card-top > span:last-child {
+  color: #7c8c80;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+}
+body.landing .phase {
+  color: var(--scenario-ink);
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  margin-top: 26px;
+}
+body.landing .scenario-card h3 {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+body.landing .card-description {
+  color: var(--t-muted);
+  font-size: 13.5px;
+  line-height: 1.75;
+}
+body.landing .available h4 {
+  color: #7c8c80;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+}
+body.landing .available li {
+  color: var(--t-ink-soft);
+  font-size: 12.5px;
+  line-height: 2.05;
+}
+body.landing .available li span {
+  color: var(--scenario-ink);
+  font-weight: 700;
+}
+body.landing .future-modules {
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-r-sm);
+  background: var(--t-surface-soft);
+  overflow: hidden;
+}
+body.landing .future-modules summary {
+  color: var(--t-ink-soft);
+  font-weight: 600;
+  font-size: 12px;
+}
+body.landing .future-modules strong {
+  color: var(--t-ink);
+}
+body.landing .future-modules small {
+  color: var(--t-muted);
+}
+body.landing .future-modules .badge {
+  border: 1px solid var(--t-line-strong);
+  border-radius: 999px;
+  padding: 2px 9px;
+  background: #fff;
+  color: var(--t-muted);
+}
+body.landing .open-scenario {
+  min-height: 50px;
+  border-radius: var(--t-r-sm);
+  background: var(--t-forest);
+  border-color: var(--t-forest);
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+body.landing .open-scenario:hover {
+  background: #24513f;
+  border-color: #24513f;
+}
+body.landing .open-scenario span {
+  color: var(--scenario-accent);
+}
+
+/* Demo note + status key --------------------------------------------- */
+body.landing .demo-note {
+  margin: 46px 0 30px;
+  padding: 30px 34px;
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-r-lg);
+  background: var(--t-surface);
+  box-shadow: var(--t-shadow-sm);
+  align-items: center;
+}
+body.landing .demo-note h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--t-ink);
+}
+body.landing .demo-note p {
+  color: var(--t-muted);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+body.landing .status-key {
+  color: var(--t-ink-soft);
+  font-size: 12px;
+}
+body.landing .status-key i {
+  border: 1px solid var(--t-line-strong);
+}
+body.landing .status-key .available-dot {
+  background: #6f9a5f;
+  border-color: #6f9a5f;
+}
+body.landing .status-key .concept-dot {
+  background: #c9a04a;
+  border-color: #c9a04a;
+}
+
+/* Footer -------------------------------------------------------------- */
+body.landing footer {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 26px 6vw 40px;
+  border-top: 1px solid var(--t-line);
+  color: var(--t-muted);
+  font-size: 12px;
+}
+body.landing .footer-brand span {
+  line-height: 1.45;
+}
+
+/* =====================================================================
+   MAP WORKSPACE  ( /map )
+   ===================================================================== */
+
+body.map-page {
+  --panel-paper: #ffffff;
+  --panel-line: var(--t-line);
+  --panel-muted: var(--t-muted);
+  --panel-shadow: var(--t-shadow);
+  color: var(--t-ink);
+}
+
+/* Header -------------------------------------------------------------- */
+body.map-page .workspace-header {
+  background: #ffffff;
+  border-bottom: 1px solid var(--t-line);
+  box-shadow: 0 1px 0 #16332a08;
+  padding: 14px 26px 12px;
+}
+body.map-page .workspace-title {
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: 14px;
+}
+body.map-page .workspace-product {
+  color: var(--t-muted);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+}
+body.map-page .workspace-title h1 {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--t-ink);
+}
+body.map-page .workspace-title #loaded-period {
+  color: var(--t-muted);
+  font-size: 11.5px;
+}
+body.map-page .workspace-emblem {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--scenario-soft);
+  color: var(--scenario-ink);
+  border: 1px solid color-mix(in srgb, var(--scenario-accent) 45%, transparent);
+}
+body.map-page .workspace-emblem svg {
+  width: 22px;
+  height: 22px;
+}
+body.map-page .workspace-state {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--t-muted);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--t-surface-soft);
+  border: 1px solid var(--t-line);
+}
+body.map-page .workspace-state::before {
+  width: 7px;
+  height: 7px;
+}
+body.map-page .header-actions {
+  gap: 8px;
+  align-items: center;
+}
+body.map-page .outline-button,
+body.map-page .icon-button {
+  border: 1px solid var(--t-line-strong);
+  border-radius: 9px;
+  color: var(--t-ink-soft);
+  background: #fff;
+  font-weight: 600;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+body.map-page .outline-button:hover:not(:disabled),
+body.map-page .icon-button:hover {
+  background: var(--t-surface-soft);
+  border-color: var(--t-line-strong);
+  color: var(--t-ink);
+}
+body.map-page .scenario-home {
+  border: 1px solid var(--t-line-strong);
+  border-radius: 9px;
+  color: var(--t-ink-soft);
+  font-weight: 600;
+  background: #fff;
+}
+body.map-page .scenario-home:hover {
+  background: var(--t-surface-soft);
+  border-color: var(--t-line-strong);
+  color: var(--t-ink);
+}
+
+body.map-page .scenario-context {
+  grid-template-columns: 240px minmax(0, 1fr) auto;
+  gap: 6px 28px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--t-line);
+}
+body.map-page .scenario-context .eyebrow {
+  color: var(--scenario-ink);
+  font-size: 10.5px;
+  letter-spacing: 1.6px;
+  font-weight: 700;
+}
+body.map-page .scenario-context > p:not(.eyebrow) {
+  color: var(--t-muted);
+  font-size: 12.5px;
+}
+body.map-page .header-context > span {
+  background: var(--t-surface-soft);
+  border: 1px solid var(--t-line);
+  border-radius: 999px;
+  color: var(--t-ink-soft);
+  font-weight: 600;
+}
+body.map-page .header-context svg {
+  color: var(--scenario-ink);
+}
+
+/* Scenario switcher (segmented) -------------------------------------- */
+body.map-page .scenario-navigation {
+  gap: 5px;
+  padding: 4px;
+  background: var(--t-surface-sunken);
+  border-radius: 11px;
+}
+body.map-page .scenario-navigation a {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--t-muted);
+  font-weight: 600;
+  font-size: 10.5px;
+  letter-spacing: 0.2px;
+  padding: 8px 10px;
+}
+body.map-page .scenario-navigation a:hover {
+  background: #e4ebdc;
+  color: var(--t-ink);
+}
+body.map-page .scenario-navigation a[aria-current="page"] {
+  background: #fff;
+  border-color: var(--t-line-strong);
+  color: var(--scenario-ink);
+  box-shadow: var(--t-shadow-sm);
+}
+
+/* Floating panel ------------------------------------------------------ */
+body.map-page .floating-panel-heading {
+  padding: 12px 16px 12px 22px;
+  border-bottom: 1px solid var(--t-line);
+  background: var(--t-surface-soft);
+}
+body.map-page .floating-panel-heading > span {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--t-muted);
+}
+body.map-page .floating-panel-heading .icon-button {
+  color: var(--t-muted);
+  border-color: transparent;
+  background: transparent;
+}
+
+/* Tabs ---------------------------------------------------------------- */
+body.map-page .tabs {
+  margin: 16px 22px 0;
+}
+body.map-page .tab {
+  color: var(--t-muted);
+  font-weight: 600;
+  border-bottom-width: 2px;
+}
+body.map-page .tab.active {
+  color: var(--t-ink);
+  border-color: var(--t-accent);
+}
+body.map-page #results-badge {
+  background: var(--t-accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+/* Wizard intro + step indicator -------------------------------------- */
+body.map-page .setup-intro {
+  padding-top: 22px;
+}
+body.map-page .setup-intro .eyebrow {
+  color: var(--t-accent);
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  font-weight: 700;
+}
+body.map-page .setup-intro h2 {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--t-ink);
+  margin-top: 9px;
+}
+body.map-page .setup-intro p {
+  color: var(--t-muted);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+body.map-page .setup-steps {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-top: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--t-line);
+}
+body.map-page .setup-steps button {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-r-sm);
+  background: var(--t-surface-soft);
+  color: var(--t-muted);
+  font-weight: 600;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+body.map-page .setup-steps button > span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--t-line-strong);
+  background: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+body.map-page .setup-steps button[aria-current="step"] {
+  background: #fff;
+  border-color: var(--scenario-accent);
+  color: var(--t-ink);
+  box-shadow: var(--t-shadow-sm);
+}
+body.map-page .setup-steps button[aria-current="step"] > span {
+  background: var(--t-accent);
+  border-color: var(--t-accent);
+  color: #fff;
+}
+body.map-page .setup-steps button.complete {
+  color: var(--t-ink-soft);
+  background: #fff;
+}
+body.map-page .setup-steps button.complete > span {
+  background: #e6efdd;
+  border-color: #adc39d;
+  color: var(--t-ink);
+}
+
+/* Control sections ---------------------------------------------------- */
+body.map-page .settings-group-heading > span {
+  color: var(--t-accent);
+  font-weight: 700;
+  font-size: 12px;
+}
+body.map-page .settings-group-heading h3 {
+  color: var(--t-ink);
+  font-weight: 600;
+}
+body.map-page .settings-group-heading p {
+  color: var(--t-muted);
+}
+
+body.map-page .sidebar label,
+body.map-page .sidebar .field-note {
+  color: var(--t-muted);
+}
+body.map-page .sidebar > form label,
+body.map-page .sidebar .control-section > label {
+  color: var(--t-ink-soft);
+  font-weight: 600;
+}
+
+body.map-page .sidebar input:not([type="checkbox"]):not([type="range"]),
+body.map-page .sidebar select {
+  height: 40px;
+  border: 1px solid var(--t-line-strong);
+  border-radius: var(--t-r-sm);
+  background: #fff;
+  color: var(--t-ink);
+  font-size: 13px;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+body.map-page .sidebar input:not([type="checkbox"]):not([type="range"]):focus,
+body.map-page .sidebar select:focus {
+  border-color: var(--t-accent);
+  box-shadow: var(--t-ring);
+  outline: none;
+}
+body.map-page .sidebar input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--t-accent);
+}
+body.map-page .sidebar input[type="range"] {
+  accent-color: var(--t-accent);
+}
+
+body.map-page .subtle-button {
+  background: var(--t-surface-soft);
+  border: 1px solid var(--t-line-strong);
+  border-radius: var(--t-r-sm);
+  color: var(--t-ink-soft);
+  font-weight: 600;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
+}
+body.map-page .subtle-button:hover {
+  background: #eaf0e0;
+  border-color: var(--t-line-strong);
+  color: var(--t-ink);
+}
+
+body.map-page .presets button {
+  border: 1px solid var(--t-line);
+  border-radius: 999px;
+  background: var(--t-surface-soft);
+  color: var(--t-ink-soft);
+  font-weight: 600;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease;
+}
+body.map-page .presets button:hover,
+body.map-page .presets button.active {
+  background: var(--t-accent-soft);
+  border-color: var(--scenario-accent);
+  color: #a04f22;
+}
+
+body.map-page .coordinates {
+  border-color: var(--t-line);
+}
+body.map-page .coordinates summary {
+  color: var(--t-ink-soft);
+  font-weight: 600;
+}
+
+/* Layer cards --------------------------------------------------------- */
+body.map-page .layer-card {
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-r-sm);
+  background: #fff;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+body.map-page .layer-card:hover {
+  border-color: var(--t-line-strong);
+}
+body.map-page .layer-card.selected {
+  border-color: var(--scenario-accent);
+  background: var(--scenario-soft);
+  box-shadow: var(--t-shadow-sm);
+}
+body.map-page .layer-heading h3 {
+  color: var(--t-ink);
+  font-weight: 600;
+}
+body.map-page .toggle-label {
+  color: var(--t-ink-soft);
+  font-weight: 600;
+}
+body.map-page .layer-card.selected .toggle-label {
+  color: var(--t-ink);
+}
+body.map-page .layer-dot {
+  background: var(--t-accent);
+}
+body.map-page .layer-settings {
+  border-top: 1px solid var(--t-line);
+}
+body.map-page .range-label output {
+  color: var(--t-accent);
+  font-weight: 700;
+}
+
+body.map-page .context-settings > summary {
+  color: var(--t-ink);
+  font-weight: 600;
+  border: 1px dashed var(--t-line-strong);
+  border-radius: var(--t-r-sm);
+  background: var(--t-surface-soft);
+}
+body.map-page .context-settings[open] > summary {
+  border-style: solid;
+}
+
+body.map-page .section-heading h2,
+body.map-page .results-panel .section-heading h2 {
+  color: var(--t-ink);
+  font-weight: 600;
+}
+body.map-page .counter {
+  background: var(--t-surface-sunken);
+  border: 1px solid var(--t-line);
+  border-radius: 999px;
+  color: var(--t-ink-soft);
+  font-weight: 600;
+}
+
+/* Roadmap + results --------------------------------------------------- */
+body.map-page .scenario-roadmap {
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-r-sm);
+  background: var(--t-surface-soft);
+  color: var(--t-muted);
+}
+body.map-page .scenario-roadmap summary {
+  font-weight: 600;
+  color: var(--t-ink-soft);
+}
+body.map-page .scenario-roadmap strong {
+  color: var(--t-ink);
+}
+
+body.map-page .results-summary {
+  border-color: var(--t-line);
+}
+body.map-page .results-summary dt {
+  color: var(--t-muted);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+body.map-page .results-summary dd {
+  color: var(--t-ink);
+}
+body.map-page .results-empty {
+  color: var(--t-muted);
+}
+body.map-page .result-item {
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-r-sm);
+  background: #fff;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    transform 0.16s ease;
+}
+body.map-page .result-item:hover {
+  background: var(--t-surface-soft);
+  border-color: var(--scenario-accent);
+  transform: translateX(2px);
+}
+body.map-page .result-item strong {
+  color: var(--t-ink);
+}
+body.map-page .result-item small {
+  color: var(--t-muted);
+}
+body.map-page .result-item > span:last-child {
+  color: var(--t-accent);
+  font-weight: 700;
+}
+
+/* Footer + primary buttons ------------------------------------------- */
+body.map-page .sidebar-footer {
+  border-top: 1px solid var(--t-line);
+  background: #fff;
+}
+body.map-page #status {
+  color: var(--t-muted);
+}
+body.map-page .primary-button {
+  height: 46px;
+  border-radius: var(--t-r-sm);
+  background: var(--t-accent);
+  border-color: var(--t-accent);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  box-shadow: 0 6px 16px #c96a3430;
+}
+body.map-page .primary-button:hover:not(:disabled) {
+  background: var(--t-accent-hover);
+  border-color: var(--t-accent-hover);
+}
+body.map-page .primary-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+body.map-page .primary-button:disabled {
+  background: #e6d9cf;
+  border-color: #e6d9cf;
+  color: #a08d80;
+  box-shadow: none;
+}
+body.map-page .back-button {
+  color: var(--t-muted);
+  font-weight: 600;
+}
+body.map-page .back-button:hover {
+  color: var(--t-ink);
+}
+body.map-page .sidebar-brand {
+  border-top: 1px solid var(--t-line);
+  color: var(--t-muted);
+}
+
+/* Map overlays -------------------------------------------------------- */
+body.map-page .map-legend {
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-r-sm);
+  background: #fff;
+  box-shadow: var(--t-shadow);
+}
+body.map-page .map-legend summary {
+  color: var(--t-ink);
+  font-weight: 600;
+}
+body.map-page .map-legend summary:hover {
+  background: var(--t-surface-soft);
+}
+body.map-page #legend-content {
+  color: var(--t-muted);
+  border-color: var(--t-line);
+}
+body.map-page .legend-row {
+  color: var(--t-ink-soft);
+}
+body.map-page .legend-swatch {
+  border: 1px solid #16332a1a;
+}
+
+body.map-page .map-navigation-tools .map-button,
+body.map-page .leaflet-control-zoom a {
+  border: 1px solid var(--t-line) !important;
+  border-radius: 9px !important;
+  background: #fff !important;
+  color: var(--t-ink-soft) !important;
+  box-shadow: var(--t-shadow-sm);
+}
+body.map-page .map-navigation-tools .map-button:hover,
+body.map-page .leaflet-control-zoom a:hover {
+  background: var(--t-surface-soft) !important;
+  color: var(--t-ink) !important;
+}
+body.map-page .leaflet-control-zoom {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+body.map-page .leaflet-bar {
+  border: 0 !important;
+}
+
+/* Dialog + popups ----------------------------------------------------- */
+body.map-page dialog,
+body.landing dialog {
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-r-lg);
+  box-shadow: var(--t-shadow);
+  color: var(--t-ink);
+}
+body.map-page dialog h2 {
+  color: var(--t-ink);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+body.map-page dialog dt {
+  color: var(--t-ink);
+  font-weight: 600;
+}
+body.map-page dialog dd {
+  color: var(--t-muted);
+}
+body.map-page .help-note {
+  color: var(--t-muted);
+}
+
+body.map-page .leaflet-popup-content-wrapper {
+  border: 1px solid #ffffff1f;
+  border-radius: var(--t-r-sm) !important;
+  background: var(--t-forest) !important;
+  box-shadow: var(--t-shadow) !important;
+}
+body.map-page .leaflet-popup-tip {
+  background: var(--t-forest) !important;
+}
+body.map-page .popup-eyebrow {
+  color: var(--t-accent) !important;
+}
+body.map-page .popup-title {
+  color: #fff;
+}
+
+/* =====================================================================
+   Shared polish
+   ===================================================================== */
+::selection {
+  background: #c96a3430;
+}
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid #c67e4d;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (max-width: 760px) {
+  body.landing .hero {
+    padding: 56px 0 40px;
+    gap: 30px;
+  }
+  body.landing .section-heading h2 {
+    font-size: 25px;
+  }
+  body.landing .scenario-card {
+    padding: 24px;
+  }
+  body.landing .demo-note {
+    padding: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.landing .scenario-card:hover {
+    transform: none;
+  }
+  body.map-page .result-item:hover {
+    transform: none;
+  }
+}
+
+/* =====================================================================
+   MAP WORKSPACE — compact header, bookmark menu, controls, layer cards
+   ===================================================================== */
+
+/* 1 — Slim header with the scenario switcher inline --------------- */
+body.map-page .workspace-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 22px;
+  padding: 9px 20px;
+}
+body.map-page .workspace-title {
+  grid-column: 1;
+  grid-template-columns: 34px minmax(0, auto);
+  align-items: center;
+  gap: 10px;
+  min-height: 0;
+  padding: 0;
+}
+body.map-page .workspace-heading {
+  min-width: 0;
+}
+body.map-page .workspace-product {
+  display: none;
+}
+body.map-page .workspace-title h1 {
+  font-size: 17px;
+  line-height: 1.2;
+}
+body.map-page .workspace-title #loaded-period {
+  margin-top: 3px;
+  font-size: 11px;
+}
+body.map-page .workspace-emblem {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+body.map-page .workspace-emblem svg {
+  width: 19px;
+  height: 19px;
+}
+
+body.map-page .scenario-switch {
+  grid-column: 2;
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--t-surface-sunken);
+  border-radius: 12px;
+}
+body.map-page .scenario-switch .scenario-context {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  grid-template-columns: none;
+}
+body.map-page .scenario-switch .scenario-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border: 0;
+  border-right: 1px solid var(--t-line-strong);
+  border-radius: 9px 0 0 9px;
+  background: transparent;
+  color: var(--t-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+body.map-page .scenario-switch .scenario-home:hover {
+  background: #e4ebdc;
+  color: var(--t-ink);
+}
+body.map-page .scenario-switch .scenario-home svg {
+  width: 13px;
+  height: 13px;
+  transform: rotate(180deg);
+}
+body.map-page .scenario-switch .scenario-navigation {
+  margin: 0;
+  padding: 0;
+  gap: 4px;
+  background: transparent;
+}
+body.map-page .scenario-switch .scenario-navigation a {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+}
+body.map-page .scenario-switch .scenario-navigation a[aria-current="page"] {
+  background: #fff;
+  border-color: var(--t-line-strong);
+  color: var(--scenario-ink);
+  box-shadow: var(--t-shadow-sm);
+}
+body.map-page .header-actions {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+body.map-page .header-context {
+  grid-column: 1 / -1;
+}
+
+/* 2 — Collapsed menu as a bookmark tab under the header ------------ */
+body.map-page .floating-menu:not(.open) {
+  left: 16px;
+  width: auto;
+  border: 1px solid var(--t-line);
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
+  background: var(--t-surface);
+  box-shadow: var(--t-shadow-sm);
+}
+body.map-page .floating-menu:not(.open) .floating-panel-heading {
+  border-bottom: 0;
+  padding: 8px 8px 8px 14px;
+  background: transparent;
+}
+body.map-page .floating-menu:not(.open) .floating-panel-heading > span {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
+body.map-page .floating-menu:not(.open) .floating-panel-heading .icon-button {
+  width: 26px;
+  height: 26px;
+}
+
+/* 3 — Map controls: simple light buttons --------------------------- */
+body.map-page .map-navigation-tools .map-button {
+  width: 38px;
+  min-height: 38px;
+  height: 38px;
+  border: 1px solid var(--t-line) !important;
+  border-radius: 11px !important;
+  background: #fff !important;
+  color: var(--t-ink-soft) !important;
+  box-shadow: var(--t-shadow-sm) !important;
+}
+body.map-page .map-navigation-tools .map-button:hover {
+  background: var(--t-surface-soft) !important;
+  color: var(--t-ink) !important;
+  border-color: var(--t-line-strong) !important;
+}
+body.map-page .leaflet-control-zoom.leaflet-bar {
+  border: 1px solid var(--t-line) !important;
+  border-radius: 11px !important;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: var(--t-shadow-sm) !important;
+}
+body.map-page .leaflet-control-zoom a,
+body.map-page .leaflet-control-zoom a.leaflet-control-zoom-in,
+body.map-page .leaflet-control-zoom a.leaflet-control-zoom-out {
+  width: 38px !important;
+  height: 38px !important;
+  line-height: 38px !important;
+  border: 0 !important;
+  background: #fff !important;
+  color: var(--t-ink-soft) !important;
+  font-size: 18px !important;
+}
+body.map-page .leaflet-control-zoom a.leaflet-control-zoom-out {
+  border-top: 1px solid var(--t-line) !important;
+}
+body.map-page .leaflet-control-zoom a:hover {
+  background: var(--t-surface-soft) !important;
+  color: var(--t-ink) !important;
+}
+
+/* 4 — Legend docked to the bottom-left of the map ------------------ */
+body.map-page .map-legend {
+  left: 18px !important;
+  right: auto !important;
+  bottom: 16px !important;
+}
+body.map-page.controls-open .map-legend {
+  left: 378px !important;
+}
+
+/* 5 — Selects inherit the control styling -------------------------- */
+body.map-page .sidebar select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%233f5c50' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 13px;
+  padding-right: 36px;
+}
+body.map-page .sidebar select option {
+  background: #fff;
+  color: var(--t-ink);
+}
+body.map-page .sidebar select option:checked {
+  background: var(--t-accent-soft);
+  color: var(--t-ink);
+}
+
+/* 6 — Layer cards as padded, well-spaced boxes --------------------- */
+body.map-page .layers-section .section-heading {
+  margin-bottom: 12px;
+}
+body.map-page .layer-card {
+  padding: 13px 14px;
+  margin: 0 0 10px;
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-r-sm);
+  background: #fff;
+}
+body.map-page .layer-card:last-child {
+  border-bottom: 1px solid var(--t-line);
+}
+body.map-page .layer-heading,
+body.map-page #fire-card .layer-heading {
+  padding: 0;
+}
+body.map-page .layer-settings {
+  padding: 12px 0 0;
+  margin-top: 10px;
+  border-top: 1px solid var(--t-line);
+}
+body.map-page .advanced-settings .layer-settings {
+  padding: 0;
+  margin-top: 0;
+  border-top: 0;
+}
+body.map-page .layer-card.selected {
+  border-color: var(--scenario-accent);
+  background: var(--scenario-soft);
+}
+body.map-page .layer-card.selected .layer-settings {
+  border-top-color: color-mix(in srgb, var(--scenario-accent) 40%, transparent);
+}
+body.map-page .context-settings {
+  margin-top: 12px;
+  padding: 6px 14px 12px;
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-r-sm);
+  background: var(--t-surface-soft);
+}
+body.map-page .context-settings > summary {
+  margin: 0 -4px;
+  border: 0;
+  background: transparent;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+body.map-page .context-settings .layer-card {
+  margin: 0;
+  padding: 11px 0;
+  border: 0;
+  border-bottom: 1px solid var(--t-line);
+  border-radius: 0;
+  background: transparent;
+}
+body.map-page .context-settings .layer-card:last-child {
+  border-bottom: 0;
+}
+body.map-page .context-settings .layer-card.selected {
+  background: transparent;
+  border-radius: 0;
+}
+body.map-page .context-settings .field-note {
+  padding: 8px 0 4px;
+}
+
+@media (max-width: 900px) {
+  body.map-page .workspace-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 8px;
+    padding: 10px 14px;
+  }
+  body.map-page .workspace-title {
+    grid-column: 1;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  body.map-page .workspace-title h1 {
+    font-size: 15px;
+  }
+  body.map-page .header-actions {
+    grid-column: 2;
+  }
+  body.map-page .header-actions .outline-button span {
+    display: none;
+  }
+  body.map-page .workspace-state {
+    font-size: 10px;
+    padding: 5px 9px;
+  }
+  body.map-page .scenario-switch {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  body.map-page .scenario-switch::-webkit-scrollbar {
+    display: none;
+  }
+  body.map-page .map-legend,
+  body.map-page.controls-open .map-legend {
+    left: 12px !important;
+    right: auto !important;
+    top: calc(var(--header-bottom, 120px) + 12px) !important;
+    bottom: auto !important;
+  }
+}
+
+@media (max-width: 760px) {
+  body.map-page .scenario-switch .scenario-home span {
+    display: none;
+  }
+  body.map-page .scenario-switch .scenario-navigation a {
+    padding: 8px 9px;
+  }
+}

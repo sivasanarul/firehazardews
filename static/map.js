@@ -593,7 +593,8 @@
   $("bbox").addEventListener("change", () => {
     const region = $("region");
     if ($("bbox").value === defaultBbox) region.value = "zambia";
-    else if (region.querySelector('option[value="custom"]')) region.value = "custom";
+    else if (region.querySelector('option[value="custom"]'))
+      region.value = "custom";
     $("district-field").hidden = true;
     clearDistrictHighlight();
     try {

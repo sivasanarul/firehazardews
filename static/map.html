@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="/static/design.css" />
     <link rel="stylesheet" href="/static/floating-map.css" />
     <link rel="stylesheet" href="/static/interactions.css" />
+    <link rel="stylesheet" href="/static/theme.css" />
   </head>
   <body class="map-page floating-workspace">
     <a class="skip-link" href="#workspace">Skip to map workspace</a>
@@ -92,41 +93,43 @@
           aria-hidden="true"
         ></span>
         <div class="workspace-heading">
-          <div class="workspace-product">Fire early warning system</div>
           <h1>Fire explorer</h1>
           <p id="loaded-period">
             Begin with an area. We’ll guide you from there.
           </p>
         </div>
-        <div class="header-actions">
-          <span class="workspace-state" id="workspace-state"
-            >No layers loaded</span
-          ><a class="scenario-home" href="/"
-            ><svg aria-hidden="true"><use href="#i-arrow" /></svg>All
-            scenarios</a
-          ><button
-            id="help"
-            class="outline-button"
-            type="button"
-            aria-label="About the data"
-          >
-            <svg><use href="#i-info" /></svg><span>Data guide</span></button
-          ><button
-            id="export"
-            class="outline-button"
-            type="button"
-            disabled
-            hidden
-          >
-            <svg><use href="#i-download" /></svg><span>Export GeoJSON</span>
-          </button>
-        </div>
       </div>
-      <section
-        class="scenario-context"
-        id="scenario-context"
-        aria-label="Selected scenario"
-      ></section>
+      <nav class="scenario-switch" aria-label="Workspace navigation">
+        <a class="scenario-home" href="/"
+          ><svg aria-hidden="true"><use href="#i-arrow" /></svg
+          ><span>All scenarios</span></a
+        >
+        <section
+          class="scenario-context"
+          id="scenario-context"
+          aria-label="Selected scenario"
+        ></section>
+      </nav>
+      <div class="header-actions">
+        <span class="workspace-state" id="workspace-state"
+          >No layers loaded</span
+        ><button
+          id="help"
+          class="outline-button"
+          type="button"
+          aria-label="About the data"
+        >
+          <svg><use href="#i-info" /></svg><span>Data guide</span></button
+        ><button
+          id="export"
+          class="outline-button"
+          type="button"
+          disabled
+          hidden
+        >
+          <svg><use href="#i-download" /></svg><span>Export GeoJSON</span>
+        </button>
+      </div>
       <div
         class="header-context"
         id="header-context"

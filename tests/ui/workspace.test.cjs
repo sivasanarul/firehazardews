@@ -40,7 +40,10 @@ test("district labels are safe and stay separate from fire results", async (t) =
   });
   await submit();
   const district = layers.find((layer) => layer.tooltip);
-  assert.equal(district.tooltip.querySelector("strong").textContent, "<img src=x>");
+  assert.equal(
+    district.tooltip.querySelector("strong").textContent,
+    "<img src=x>",
+  );
   assert.equal(district.tooltip.querySelector("small").textContent, "Eastern");
   assert.equal(district.tooltip.querySelector("img"), null);
   // Districts show details on hover only; the click popup is removed.
