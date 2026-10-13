@@ -78,7 +78,7 @@ window.SLIM_SCENARIOS = [
       ],
       ["Carbon assessment", "Explore carbon impacts", "Concept"],
     ],
-    defaults: ["show-recovery", "show-burn", "show-land-cover", "show-districts"],
+    defaults: ["show-recovery", "show-burn", "show-districts"],
     note: "Review the 2025 recovery status, burned area and land cover. Emissions and carbon assessment are future features.",
   },
 ];

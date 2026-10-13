@@ -742,7 +742,7 @@ for (const scenario of ["prevention", "restoration"]) {
     assert.equal($("show-fire").checked, false);
     assert.equal($("fire-card").hidden, true);
     assert.equal($("fire-display").disabled, true);
-    assert.equal($("show-land-cover").checked, scenario === "restoration");
+    assert.equal($("show-land-cover").checked, false);
     assert.equal($("show-hazard").checked, scenario === "prevention");
     assert.equal($("show-districts").checked, true);
     assert.equal($("show-fuel").checked, false);
@@ -752,7 +752,7 @@ for (const scenario of ["prevention", "restoration"]) {
     assert.equal($("show-burned-area"), null);
     assert.equal(
       $("selected-count").textContent,
-      scenario === "prevention" ? "2 selected" : "4 selected",
+      scenario === "prevention" ? "2 selected" : "3 selected",
     );
     // The environmental-context panel opens only when a layer inside it is on.
     assert.equal(
@@ -799,9 +799,9 @@ for (const scenario of ["prevention", "restoration"]) {
 }
 
 test("scenario 3 leads with recovery, fixes burned area to 2025, and skips Dates", async (t) => {
-  const { $, submit, layers, calls, window } = setup(
+  const { $, submit, layers, calls, window, change } = setup(
     t,
-    {},
+    { "/api/land-cover/selection": { year: 2025, resolution_m: 30 } },
     { scenario: "restoration" },
   );
   // No period selection: the Dates step is skipped.
@@ -816,14 +816,22 @@ test("scenario 3 leads with recovery, fixes burned area to 2025, and skips Dates
       .querySelector(".layer-card:not([hidden])"),
     $("recovery-card"),
   );
-  // Burned area is on but the period selector is removed (fixed 2025 yearly)
-  // and the label makes the year explicit.
+  // Burned area is on but grouped with the environmental context, and the
+  // period selector is removed (fixed 2025 yearly) with an explicit year.
   assert.equal($("show-burn").checked, true);
   assert.equal($("burn-period"), null);
+  const context = window.document.querySelector(".context-settings");
+  assert.equal(context.querySelector(".layer-card"), $("burn-card"));
+  assert.ok(context.querySelector("#burn-card"));
   assert.equal(
     $("burn-card").querySelector(".toggle-label span").textContent,
     "Burned area · 2025",
   );
+  // Land cover is available but is no longer selected by default.
+  assert.equal($("show-land-cover").checked, false);
+  assert.equal($("selected-count").textContent, "3 selected");
+  // Enable it so the raster stacking order can still be verified.
+  change("show-land-cover", true);
   await submit();
   assert.ok(calls.includes("/api/recovery/style"));
   assert.ok(

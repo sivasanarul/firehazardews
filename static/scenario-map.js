@@ -26,15 +26,16 @@
   // SLIM recovery status is the primary (top) layer in restoration.
   const recoveryCard = document.getElementById("recovery-card");
   recoveryCard.hidden = scenario.id !== "restoration";
-  // SLIM burned area: after recovery in restoration, first environmental context
-  // layer in detection & response, and not part of prevention.
+  // SLIM burned area: not part of prevention. Detection & response and
+  // restoration both group it with the optional environmental context rather
+  // than the primary layers.
   const contextSettings = document.querySelector(".context-settings");
   const burnCard = document.getElementById("burn-card");
   if (scenario.id === "prevention") {
     burnCard.hidden = true;
   } else {
     burnCard.hidden = false;
-    if (scenario.id === "response" && contextSettings) {
+    if (contextSettings) {
       const firstCard = contextSettings.querySelector(".layer-card");
       contextSettings.insertBefore(burnCard, firstCard);
     }

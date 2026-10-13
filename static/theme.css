@@ -24,6 +24,10 @@
   --t-shadow-sm: 0 1px 2px #16332a0d, 0 3px 10px #16332a0a;
   --t-shadow: 0 6px 16px #16332a0f, 0 18px 44px #16332a12;
   --t-ring: 0 0 0 3px #c96a3438;
+  /* Selected layer-card highlight. Every scenario reuses the scenario 1
+     (prevention) palette so the selected treatment is identical everywhere. */
+  --layer-card-selected-accent: #b7cbaa;
+  --layer-card-selected-soft: #edf3e8;
 }
 
 body {
@@ -383,10 +387,10 @@ body.map-page .workspace-emblem svg {
   height: 22px;
 }
 body.map-page .workspace-state {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
   color: var(--t-muted);
-  padding: 6px 12px;
+  padding: 7px 13px;
   border-radius: 999px;
   background: var(--t-surface-soft);
   border: 1px solid var(--t-line);
@@ -398,6 +402,12 @@ body.map-page .workspace-state::before {
 body.map-page .header-actions {
   gap: 8px;
   align-items: center;
+}
+/* Roomier header controls: larger hit targets for the primary actions. */
+body.map-page .header-actions .outline-button {
+  min-height: 38px;
+  padding: 9px 13px;
+  font-size: 11.5px;
 }
 body.map-page .outline-button,
 body.map-page .icon-button {
@@ -549,9 +559,9 @@ body.map-page .setup-intro p {
 body.map-page .setup-steps {
   display: flex;
   flex-wrap: nowrap;
-  gap: 8px;
-  margin-top: 20px;
-  padding-bottom: 18px;
+  gap: 10px;
+  margin-top: 22px;
+  padding-bottom: 20px;
   border-bottom: 1px solid var(--t-line);
 }
 body.map-page .setup-steps button {
@@ -559,21 +569,32 @@ body.map-page .setup-steps button {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 9px 10px;
+  gap: 9px;
+  padding: 11px 12px;
   border: 1px solid var(--t-line);
   border-radius: var(--t-r-sm);
   background: var(--t-surface-soft);
   color: var(--t-muted);
   font-weight: 600;
-  font-size: 11.5px;
+  font-size: 12px;
   white-space: nowrap;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+body.map-page .setup-steps button:not([aria-current="step"]):not(:disabled):hover {
+  background: #fff;
+  border-color: var(--t-line-strong);
+  color: var(--t-ink);
+  box-shadow: var(--t-shadow-sm);
 }
 body.map-page .setup-steps button > span {
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   border: 1.5px solid var(--t-line-strong);
   background: #fff;
@@ -708,8 +729,8 @@ body.map-page .layer-card:hover {
   border-color: var(--t-line-strong);
 }
 body.map-page .layer-card.selected {
-  border-color: var(--scenario-accent);
-  background: var(--scenario-soft);
+  border-color: var(--layer-card-selected-accent);
+  background: var(--layer-card-selected-soft);
   box-shadow: var(--t-shadow-sm);
 }
 body.map-page .layer-heading h3 {
@@ -992,7 +1013,7 @@ body.map-page .workspace-header {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px 22px;
-  padding: 9px 20px;
+  padding: 14px 20px;
 }
 body.map-page .workspace-title {
   grid-column: 1;
@@ -1031,8 +1052,8 @@ body.map-page .scenario-switch {
   justify-self: center;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px;
+  gap: 5px;
+  padding: 5px;
   background: var(--t-surface-sunken);
   border-radius: 12px;
 }
@@ -1047,13 +1068,13 @@ body.map-page .scenario-switch .scenario-home {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 12px;
+  padding: 10px 13px;
   border: 0;
   border-right: 1px solid var(--t-line-strong);
   border-radius: 9px 0 0 9px;
   background: transparent;
   color: var(--t-muted);
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 600;
   text-decoration: none;
 }
@@ -1074,9 +1095,10 @@ body.map-page .scenario-switch .scenario-navigation {
 }
 body.map-page .scenario-switch .scenario-navigation a {
   flex: 0 0 auto;
-  padding: 8px 12px;
+  padding: 10px 13px;
   border: 1px solid transparent;
   border-radius: 9px;
+  font-size: 11.5px;
 }
 body.map-page .scenario-switch .scenario-navigation a[aria-current="page"] {
   background: #fff;
@@ -1201,7 +1223,7 @@ body.map-page .layers-section .section-heading {
 }
 body.map-page .layer-card {
   padding: 13px 14px;
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   border: 1px solid var(--t-line);
   border-radius: var(--t-r-sm);
   background: #fff;
@@ -1224,11 +1246,15 @@ body.map-page .advanced-settings .layer-settings {
   border-top: 0;
 }
 body.map-page .layer-card.selected {
-  border-color: var(--scenario-accent);
-  background: var(--scenario-soft);
+  border-color: var(--layer-card-selected-accent);
+  background: var(--layer-card-selected-soft);
 }
 body.map-page .layer-card.selected .layer-settings {
-  border-top-color: color-mix(in srgb, var(--scenario-accent) 40%, transparent);
+  border-top-color: color-mix(
+    in srgb,
+    var(--layer-card-selected-accent) 40%,
+    transparent
+  );
 }
 body.map-page .context-settings {
   margin-top: 12px;
