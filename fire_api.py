@@ -51,6 +51,12 @@ except ImportError:  # Allow: python slim_fire/fire_api.py
 app = FastAPI(title="SLIM Fire API", version="0.1.0")
 app.add_middleware(GZipMiddleware, minimum_size=1_000)
 
+# The recovery COG is replaced in place when a new product is published.  Do
+# not let a previously transparent tile remain in the browser cache after the
+# source at that URL has changed; the server-side tile cache still avoids
+# repeated COG reads.
+RECOVERY_CACHE_HEADERS = {"Cache-Control": "no-cache"}
+
 
 class RevalidatingStaticFiles(StaticFiles):
     """Serve assets that must be revalidated so edits appear without a hard refresh.
@@ -403,9 +409,9 @@ def burn_tile(z: int, x: int, y: int, period: str = Query("yearly")) -> Response
 
 
 @app.get("/api/recovery/style")
-def recovery_metadata() -> dict:
+def recovery_metadata() -> JSONResponse:
     """Display colour and provenance for the 2025 SLIM recovery-status raster."""
-    return recovery_style()
+    return JSONResponse(recovery_style(), headers=RECOVERY_CACHE_HEADERS)
 
 
 @app.get("/api/recovery/tiles/{z}/{x}/{y}.png", include_in_schema=False)
@@ -425,7 +431,7 @@ def recovery_tile(z: int, x: int, y: int) -> Response:
     return Response(
         content=content,
         media_type="image/png",
-        headers={"Cache-Control": "public, max-age=86400"},
+        headers=RECOVERY_CACHE_HEADERS,
     )
 
 

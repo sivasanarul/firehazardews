@@ -1220,7 +1220,8 @@ body.map-page .map-legend {
   bottom: 16px !important;
 }
 body.map-page.controls-open .map-legend {
-  left: 378px !important;
+  /* Keep the legend beyond the 400px expanded menu plus its gutter. */
+  left: 418px !important;
 }
 
 /* 5 — Selects inherit the control styling -------------------------- */

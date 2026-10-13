@@ -125,8 +125,15 @@ class LandscapeTests(unittest.TestCase):
         self.assertEqual(client.get("/api/burn/tiles/6/36/34.png?period=2024-01").status_code, 422)
         with patch("fire_api.get_burn_tile", side_effect=landscape.LandscapeError("Source unavailable")):
             self.assertEqual(client.get("/api/burn/tiles/6/36/34.png").status_code, 502)
-        self.assertEqual(client.get("/api/recovery/style").json()["year"], 2025)
+        recovery_style_response = client.get("/api/recovery/style")
+        self.assertEqual(recovery_style_response.json()["year"], 2025)
+        self.assertEqual(recovery_style_response.headers["cache-control"], "no-cache")
         self.assertEqual(client.get("/api/recovery/tiles/2/99/0.png").status_code, 422)
+        with patch("fire_api.get_recovery_tile", return_value=b"recovery-png"):
+            recovery_tile_response = client.get("/api/recovery/tiles/6/36/34.png")
+            self.assertEqual(recovery_tile_response.content, b"recovery-png")
+            self.assertEqual(recovery_tile_response.headers["content-type"], "image/png")
+            self.assertEqual(recovery_tile_response.headers["cache-control"], "no-cache")
         with patch("fire_api.get_recovery_tile", side_effect=landscape.LandscapeError("Source unavailable")):
             self.assertEqual(client.get("/api/recovery/tiles/6/36/34.png").status_code, 502)
         with patch("fire_api.get_hazard_tile", side_effect=landscape.LandscapeError("Source unavailable")):
