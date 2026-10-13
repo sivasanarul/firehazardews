@@ -1263,6 +1263,14 @@ body.map-page .context-settings .field-note {
   padding: 8px 0 4px;
 }
 
+/* Fire activity uses the same card pattern as the hazard index, with its
+   display and sensor options shown inside the collapsible settings. */
+body.map-page #fire-settings .advanced-settings {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--t-line);
+}
+
 @media (max-width: 900px) {
   body.map-page .workspace-header {
     grid-template-columns: minmax(0, 1fr) auto;

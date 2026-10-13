@@ -18,21 +18,31 @@
   roadmap.className = "scenario-roadmap";
   roadmap.innerHTML = `<summary>Future features <span>${scenario.future.length} modules</span></summary><p>${scenario.note} These modules are preview only.</p><ul>${scenario.future.map(([name, detail, status]) => `<li><div><strong>${name}</strong><small>${detail}</small></div><span>${status}</span></li>`).join("")}</ul>`;
   document.getElementById("explore-panel").append(roadmap);
-  document.getElementById("fire-display").value =
-    scenario.id === "response" ? "fires" : "none";
+  document.getElementById("fire-display").value = "fires";
+  document.getElementById("show-fire").checked = scenario.id === "response";
   for (const id of scenario.defaults)
     document.getElementById(id).checked = true;
   document.getElementById("hazard-card").hidden = scenario.id !== "prevention";
-  // SLIM burned area: primary (top) layer in restoration, optional context in
-  // detection & response, and not part of the prevention workspace.
+  // SLIM burned area: primary (top) layer in restoration, first environmental
+  // context layer in detection & response, and not part of prevention.
+  const contextSettings = document.querySelector(".context-settings");
   const burnCard = document.getElementById("burn-card");
   if (scenario.id === "prevention") {
     burnCard.hidden = true;
   } else {
     burnCard.hidden = false;
-    if (scenario.id === "response")
-      document.querySelector(".context-settings").append(burnCard);
+    if (scenario.id === "response" && contextSettings) {
+      const firstCard = contextSettings.querySelector(".layer-card");
+      contextSettings.insertBefore(burnCard, firstCard);
+    }
   }
+  // Keep the optional environmental-context panel open when a layer inside it
+  // is enabled by default.
+  if (
+    contextSettings &&
+    contextSettings.querySelector('input[type="checkbox"]:checked')
+  )
+    contextSettings.open = true;
   if (scenario.id === "prevention") {
     // Area is Zambia or a specific district only: no manual extent or coordinates.
     document.querySelector('#region option[value="custom"]')?.remove();
@@ -78,8 +88,6 @@
   if (scenario.id !== "response") {
     document.getElementById("fire-card").hidden = true;
     document.getElementById("fire-display").disabled = true;
-    document.querySelector("#fire-card + .field-note").hidden = true;
-    document.querySelector(".context-settings").open = true;
     document.querySelector(".context-settings > .field-note").textContent =
       "Add landscape and rainfall layers for context.";
     document.getElementById("loaded-period").textContent =

@@ -98,16 +98,15 @@
         : "Select a period",
     );
     $("header-dates").parentElement.hidden = skipsDates;
-    const selected =
-      Number($("fire-display").value !== "none") +
-      [
-        "show-hazard",
-        "show-burn",
-        "show-districts",
-        "show-land-cover",
-        "show-fuel",
-        "show-precip-heatmap",
-      ].filter((id) => $(id).checked).length;
+    const selected = [
+      "show-fire",
+      "show-hazard",
+      "show-burn",
+      "show-districts",
+      "show-land-cover",
+      "show-fuel",
+      "show-precip-heatmap",
+    ].filter((id) => $(id).checked).length;
     setText(
       "header-layers",
       `${selected} ${selected === 1 ? "layer" : "layers"}`,
@@ -704,6 +703,7 @@
     });
   }
   const toggles = [
+    "show-fire",
     "show-hazard",
     "show-burn",
     "show-districts",
@@ -712,11 +712,10 @@
     "show-precip-heatmap",
   ];
   function selectionChanged() {
-    if (!supportsFire) $("fire-display").value = "none";
-    $("fire-display").disabled = !supportsFire || busy;
-    const fire = $("fire-display").value !== "none";
-    $("fire-card").classList.toggle("selected", fire);
-    $("fire-dot").hidden = !fire;
+    if (!supportsFire) $("show-fire").checked = false;
+    $("show-fire").disabled = !supportsFire || busy;
+    const fire = supportsFire && $("show-fire").checked;
+    $("fire-display").disabled = !fire || busy;
     $("sensor").disabled = !fire || busy;
     $("event-note").hidden = $("fire-display").value !== "events";
     for (const id of toggles) {
@@ -730,7 +729,7 @@
     }
     setText(
       "selected-count",
-      `${Number(fire) + toggles.filter((id) => $(id).checked).length} selected`,
+      `${toggles.filter((id) => $(id).checked).length} selected`,
     );
     refreshHeaderContext();
   }
@@ -998,7 +997,7 @@
     if (overlays.has("burn"))
       row(
         burnStyle?.color || "#c2410c",
-        `Burned area · SLIM${burnPeriod ? ` · ${burnPeriod}` : ""}`,
+        `Burned area${burnPeriod ? ` · ${burnPeriod}` : ""}`,
       );
     if (overlays.has("fuel")) {
       const p = document.createElement("p");
@@ -1084,7 +1083,8 @@
       end: $("end").value,
       sensor: $("sensor").value,
     };
-    const mode = supportsFire ? $("fire-display").value : "none";
+    const mode =
+      supportsFire && $("show-fire").checked ? $("fire-display").value : "none";
     const tasks = [];
     try {
       for (const el of form.querySelectorAll("input,select,button"))

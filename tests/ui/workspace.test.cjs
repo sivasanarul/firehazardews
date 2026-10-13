@@ -285,7 +285,7 @@ function setup(
 for (const scenario of ["prevention", "response", "restoration"]) {
   test(`${scenario}: clicking Explore map requests districts when they are the only selected layer`, async (t) => {
     const { submit, change, $, calls } = setup(t, {}, { scenario });
-    change("fire-display", "none");
+    change("show-fire", false);
     for (const id of [
       "show-hazard",
       "show-burn",
@@ -369,7 +369,11 @@ test("first visit makes no observation requests and clearly shows an unloaded st
 });
 
 test("invalid date order and coordinates do not request or clear observations", async (t) => {
-  const { change, submit, calls, $ } = setup(t, {}, { scenario: "restoration" });
+  const { change, submit, calls, $ } = setup(
+    t,
+    {},
+    { scenario: "restoration" },
+  );
   change("start", "2025-08-01");
   await submit();
   assert.match($("status").textContent, /end date/);
@@ -393,7 +397,10 @@ test("fire results update metrics, safe popups, result navigation, and export av
   await submit();
   assert.equal($("detection-count").textContent, "2");
   assert.equal($("max-frp").textContent, "38");
-  assert.equal($("period-days").textContent, String(new Date(2026, Number(lastMonth2026().slice(5)), 0).getDate()));
+  assert.equal(
+    $("period-days").textContent,
+    String(new Date(2026, Number(lastMonth2026().slice(5)), 0).getDate()),
+  );
   assert.equal($("results-list").children.length, 2);
   assert.equal($("results-list").querySelector("img"), null);
   assert.equal(
@@ -445,7 +452,7 @@ test("precipitation uses the selected end date, reports status, and changes only
     "/api/precipitation/heatmap": collection(point({ intensity: 0.3 })),
   });
   change("show-precip-heatmap", true);
-  change("fire-display", "none");
+  change("show-fire", false);
   await submit();
   assert.ok(
     calls.some((url) =>
@@ -479,7 +486,7 @@ test("failed reload clears stale metrics and disables export", async (t) => {
 test("turning every layer off removes old overlays and reports the empty selection", async (t) => {
   const { change, submit, $, layers } = setup(t);
   await submit();
-  change("fire-display", "none");
+  change("show-fire", false);
   change("show-districts", false);
   change("show-burn", false);
   await submit();
@@ -493,7 +500,11 @@ test("turning every layer off removes old overlays and reports the empty selecti
 });
 
 test("tile errors stay visible after Leaflet emits load", async (t) => {
-  const { change, submit, $, layers } = setup(t, {}, { scenario: "restoration" });
+  const { change, submit, $, layers } = setup(
+    t,
+    {},
+    { scenario: "restoration" },
+  );
   change("show-burn", true);
   await submit();
   const layer = layers.find((layer) => layer.url?.includes("/api/burn/"));
@@ -564,7 +575,8 @@ test("guided setup reveals one decision at a time without loading data", async (
   assert.equal($("layers-step").hidden, false);
   assert.equal($("load").hidden, false);
   assert.equal($("next-step").hidden, true);
-  assert.equal($("layers-step").querySelector(".context-settings").open, false);
+  // The default workspace enables a context layer, so the panel is open.
+  assert.equal($("layers-step").querySelector(".context-settings").open, true);
   assert.deepEqual(calls, ["/api/land-cover/style"]);
 });
 
@@ -631,7 +643,7 @@ test("full map settings remain available through the Map settings tab after load
 
 test("exploring without a fire layer still leaves every setting available", async (t) => {
   const { $, change, submit } = setup(t);
-  change("fire-display", "none");
+  change("show-fire", false);
   await submit();
   assert.equal($("full-settings-heading").hidden, false);
   assert.equal($("area-step").hidden, false);
@@ -708,13 +720,13 @@ for (const scenario of ["prevention", "restoration"]) {
       { "/api/land-cover/selection": { year: 2024, resolution_m: 10 } },
       { scenario },
     );
-    $("fire-display").value = "fires";
+    $("show-fire").checked = true;
     await submit();
     assert.equal(
       calls.some((url) => /\/api\/(fires|fire-events)/.test(url)),
       false,
     );
-    assert.equal($("fire-display").value, "none");
+    assert.equal($("show-fire").checked, false);
     assert.equal($("fire-display").disabled, true);
     assert.equal($("fire-card").hidden, true);
     assert.equal($("export").hidden, true);
@@ -725,7 +737,7 @@ for (const scenario of ["prevention", "restoration"]) {
       { "/api/land-cover/selection": { year: 2024, resolution_m: 10 } },
       { scenario },
     );
-    assert.equal($("fire-display").value, "none");
+    assert.equal($("show-fire").checked, false);
     assert.equal($("fire-card").hidden, true);
     assert.equal($("fire-display").disabled, true);
     assert.equal($("show-land-cover").checked, scenario === "restoration");
@@ -739,7 +751,11 @@ for (const scenario of ["prevention", "restoration"]) {
       $("selected-count").textContent,
       scenario === "prevention" ? "2 selected" : "3 selected",
     );
-    assert.equal(window.document.querySelector(".context-settings").open, true);
+    // The environmental-context panel opens only when a layer inside it is on.
+    assert.equal(
+      window.document.querySelector(".context-settings").open,
+      scenario !== "prevention",
+    );
     assert.match(
       window.document.querySelector(".scenario-roadmap").textContent,
       /future features/i,
@@ -805,7 +821,11 @@ test("scenario 3 makes the SLIM burn mask its primary layer and resolves the mon
 });
 
 test("scenario 2 reviews a 2026 month and shows the previous month's burn mask", async (t) => {
-  const { $, submit, layers, calls, window } = setup(t, {}, { scenario: "response" });
+  const { $, submit, layers, calls, window } = setup(
+    t,
+    {},
+    { scenario: "response" },
+  );
   // Month picker replaces the date range; burn + districts are on by default.
   assert.equal($("month-field").hidden, false);
   assert.equal($("dates-step").querySelector(".date-fields").hidden, true);
@@ -813,6 +833,15 @@ test("scenario 2 reviews a 2026 month and shows the previous month's burn mask",
   assert.equal($("show-districts").checked, true);
   assert.equal($("burn-card").hidden, false);
   assert.ok(window.document.querySelector(".context-settings #burn-card"));
+  // Burned area is the first environmental-context layer, and the panel is
+  // open because a layer inside it is enabled by default.
+  const context = window.document.querySelector(".context-settings");
+  assert.equal(context.querySelector(".layer-card"), $("burn-card"));
+  assert.equal(context.open, true);
+  assert.equal(
+    $("burn-card").querySelector(".toggle-label span").textContent,
+    "Burned area",
+  );
   // The picker lists 2026 months up to now and drives the fire query.
   const months = [...$("month-select").options].map((option) => option.value);
   assert.ok(months.length >= 1 && months.length <= 12);
@@ -977,7 +1006,7 @@ test("prevention skips the Dates step and still loads the hazard and district la
 test("an unknown scenario safely falls back to the original detection workflow", (t) => {
   const { window, $ } = setup(t, {}, { scenario: "unknown" });
   assert.equal(window.document.body.dataset.scenario, "response");
-  assert.equal($("fire-display").value, "fires");
+  assert.equal($("show-fire").checked, true);
   assert.equal($("selected-count").textContent, "3 selected");
 });
 

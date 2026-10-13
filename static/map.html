@@ -388,7 +388,7 @@
                     type="checkbox"
                     aria-controls="burn-settings"
                     aria-expanded="false"
-                  /><span>Burned area · SLIM</span></label
+                  /><span>Burned area</span></label
                 >
                 <p class="field-note">
                   Satellite burn-scar mask published monthly and as a yearly
@@ -413,6 +413,44 @@
                   />
                 </div>
               </div>
+              <div class="layer-card" id="fire-card">
+                <label class="layer-heading toggle-label" for="show-fire"
+                  ><input
+                    id="show-fire"
+                    type="checkbox"
+                    aria-controls="fire-settings"
+                    aria-expanded="false"
+                  /><span>Fire activity</span></label
+                >
+                <p class="field-note">
+                  Satellite detections are a useful starting point. Select a
+                  marker on the loaded map to see its details.
+                </p>
+                <div class="layer-settings" id="fire-settings" hidden>
+                  <label for="fire-display">Display</label
+                  ><select id="fire-display">
+                    <option value="fires">Individual detections</option>
+                    <option value="events">15-day event polygons</option>
+                  </select>
+                  <details class="advanced-settings">
+                    <summary>Sensor options</summary>
+                    <div class="layer-settings">
+                      <label for="sensor">Satellite sensor</label
+                      ><select id="sensor">
+                        <option value="all">All available sensors</option>
+                        <option value="viirs_snpp">VIIRS S-NPP</option>
+                        <option value="viirs_noaa20">VIIRS NOAA-20</option>
+                        <option value="viirs_noaa21">VIIRS NOAA-21</option>
+                        <option value="modis">MODIS</option>
+                      </select>
+                    </div>
+                  </details>
+                  <p class="field-note" id="event-note" hidden>
+                    Event polygons group nearby detections. They are not
+                    measured burned-area perimeters.
+                  </p>
+                </div>
+              </div>
               <div class="layer-card">
                 <label class="layer-heading toggle-label" for="show-districts"
                   ><input id="show-districts" type="checkbox" /><span
@@ -424,48 +462,6 @@
                   province.
                 </p>
               </div>
-              <div class="layer-card selected" id="fire-card">
-                <div class="layer-heading">
-                  <span class="layer-icon fire"
-                    ><img src="/static/fire-layer-icon.png" alt=""
-                  /></span>
-                  <h3>Fire activity</h3>
-                  <span
-                    class="layer-dot"
-                    id="fire-dot"
-                    aria-hidden="true"
-                  ></span>
-                </div>
-                <label class="sr-only" for="fire-display"
-                  >Fire activity display</label
-                >
-                <select id="fire-display">
-                  <option value="fires">Individual detections</option>
-                  <option value="events">15-day event polygons</option>
-                  <option value="none">Off</option>
-                </select>
-                <details class="advanced-settings">
-                  <summary>Sensor options</summary>
-                  <div class="layer-settings">
-                    <label for="sensor">Satellite sensor</label
-                    ><select id="sensor">
-                      <option value="all">All available sensors</option>
-                      <option value="viirs_snpp">VIIRS S-NPP</option>
-                      <option value="viirs_noaa20">VIIRS NOAA-20</option>
-                      <option value="viirs_noaa21">VIIRS NOAA-21</option>
-                      <option value="modis">MODIS</option>
-                    </select>
-                  </div>
-                </details>
-                <p class="field-note" id="event-note" hidden>
-                  Event polygons group nearby detections. They are not measured
-                  burned-area perimeters.
-                </p>
-              </div>
-              <p class="field-note">
-                Satellite detections are a useful starting point. Select a
-                marker on the loaded map to see its details.
-              </p>
               <details class="context-settings">
                 <summary>
                   Add environmental context <span>Optional</span>
@@ -698,15 +694,15 @@
           coverage. Hover a district for its name and province. Boundaries are
           independent of the observation period.
         </dd>
-        <dt>Burned area · SLIM</dt>
+        <dt>Burned area</dt>
         <dd>
           A satellite burn-scar mask published monthly (2025–2026) plus a
           full-year 2025 composite. Detection & response shows a chosen 2026
           month of fire activity together with the burned-area mask of the
-          <em>previous</em> month. In restoration, “Monthly” follows the month of
-          the selected “To” date and “Yearly” is the 2025 composite. Cells are a
-          binary burned/not-burned classification, not a severity or perimeter
-          measure.
+          <em>previous</em> month. In restoration, “Monthly” follows the month
+          of the selected “To” date and “Yearly” is the 2025 composite. Cells
+          are a binary burned/not-burned classification, not a severity or
+          perimeter measure.
         </dd>
         <dt>Environmental layers</dt>
         <dd>

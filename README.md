@@ -59,6 +59,7 @@ class values. `/api/land-cover/style` exposes the parsed palette as JSON.
 Valid sensor values are `all`, `modis`, `viirs_snpp`, `viirs_noaa20`, and
 `viirs_noaa21`. Set `FIRMS_CACHE_DIR` and `FIRE_DATA_DIR` to override the
 default `.cache/firms` and `data/fires` directories.
+
 ## Monitoring workspace
 
 The `/map` workspace uses a full-viewport map with controls docked to the left
@@ -108,7 +109,6 @@ npm test --prefix tests/ui
 These checks cover loading, validation, partial failures, result navigation,
 opacity, empty states, guided navigation, and mobile control visibility. They do not replace a
 visual browser review.
-
 
 ## Scenario landing page
 
