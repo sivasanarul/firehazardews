@@ -34,6 +34,12 @@ BURN_MONTHS = [f"{BURN_YEAR}-{month:02d}" for month in range(1, 13)]
 BURN_RECENT_YEAR = 2026
 BURN_COLOR = "#c2410c"
 
+# SLIM 2025 recovery-status raster (1 = recovered cell, 0 = nodata).
+RECOVERY_YEAR = 2025
+RECOVERY_URL = (f"{BASE_URL}/recovery/SLIM_RECOVERY_STATUS_"
+                f"{RECOVERY_YEAR}0101_{RECOVERY_YEAR}1231_WGS84_cog.tif")
+RECOVERY_COLOR = "#2f8f5b"
+
 
 class LandscapeError(RuntimeError):
     """An upstream landscape layer could not be read."""
@@ -144,6 +150,44 @@ def get_burn_tile(x: int, y: int, z: int, period: str, cache_dir=".cache/burnsca
         return content
     except Exception as exc:
         raise LandscapeError("Could not load the burned-area raster. Please retry.") from exc
+
+
+def recovery_style() -> dict:
+    return {"year": RECOVERY_YEAR, "color": RECOVERY_COLOR, "label": "SLIM recovery status",
+            "source": RECOVERY_URL}
+
+
+def colorize_recovery(values, mask) -> bytes:
+    """Render recovery-status cells (value 1) in a single green tone, else transparent."""
+    recovered = (mask > 0) & (values == 1)
+    rgba = np.zeros((*values.shape, 4), dtype=np.uint8)
+    rgba[..., 0], rgba[..., 1], rgba[..., 2] = 0x2F, 0x8F, 0x5B
+    rgba[..., 3] = np.where(recovered, 255, 0)
+    output = BytesIO()
+    Image.fromarray(rgba).save(output, format="PNG")
+    return output.getvalue()
+
+
+def get_recovery_tile(x: int, y: int, z: int, cache_dir=".cache/recovery") -> bytes:
+    tile_bbox(x, y, z)
+    key = sha256(f"{RECOVERY_URL}/{z}/{x}/{y}/v1".encode()).hexdigest()
+    path = Path(cache_dir) / f"{key}.png"
+    if path.exists():
+        return path.read_bytes()
+    try:
+        with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR",
+                          CPL_VSIL_CURL_ALLOWED_EXTENSIONS=".tif", GDAL_HTTP_TIMEOUT="45"):
+            with Reader(RECOVERY_URL) as cog:
+                try:
+                    tile = cog.tile(x, y, z, tilesize=256)
+                    content = colorize_recovery(tile.data[0], tile.mask)
+                except TileOutsideBounds:
+                    content = colorize_recovery(np.zeros((256, 256)), np.zeros((256, 256)))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        return content
+    except Exception as exc:
+        raise LandscapeError("Could not load the recovery raster. Please retry.") from exc
 
 
 def prepare_districts(data: dict) -> dict:

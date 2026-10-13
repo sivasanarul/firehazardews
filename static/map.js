@@ -5,9 +5,10 @@
   const form = $("controls");
   const scenario = window.SLIM_ACTIVE_SCENARIO || null;
   const supportsFire = scenario?.id === "response";
-  // Prevention (scenario 1) observes a fixed 2025 hazard index, so its wizard
-  // skips the Dates step entirely.
-  const skipsDates = scenario?.id === "prevention";
+  // Prevention observes a fixed 2025 hazard index and restoration a fixed 2025
+  // recovery/burn status, so their wizards skip the Dates step entirely.
+  const skipsDates =
+    scenario?.id === "prevention" || scenario?.id === "restoration";
   const stepSequence = skipsDates ? [0, 2] : [0, 1, 2];
   const defaultBbox = "21.9,-18.1,33.8,-8.2";
   let busy = false;
@@ -18,6 +19,7 @@
   let hazardStyle = null;
   let burnStyle = null;
   let burnPeriod = null;
+  let recoveryStyle = null;
   let setupStep = 0;
   let unlockedStep = 0;
   let currentPanel = "explore";
@@ -102,6 +104,7 @@
       "show-fire",
       "show-hazard",
       "show-burn",
+      "show-recovery",
       "show-districts",
       "show-land-cover",
       "show-fuel",
@@ -706,6 +709,7 @@
     "show-fire",
     "show-hazard",
     "show-burn",
+    "show-recovery",
     "show-districts",
     "show-land-cover",
     "show-fuel",
@@ -739,6 +743,7 @@
   for (const [id, key] of [
     ["hazard-opacity", "hazard"],
     ["burn-opacity", "burn"],
+    ["recovery-opacity", "recovery"],
     ["land-cover-opacity", "land"],
     ["fuel-opacity", "fuel"],
     ["precip-heatmap-opacity", "rain"],
@@ -804,12 +809,26 @@
     layerStates.set(key, { message, ...options });
     refreshStatus();
   }
+  // Raster layers are stacked so the map follows the on-screen order in the
+  // layers step: the first listed layer sits on top of the ones below it.
+  const TILE_KEYS = {
+    "show-hazard": "hazard",
+    "show-recovery": "recovery",
+    "show-burn": "burn",
+    "show-land-cover": "land",
+    "show-fuel": "fuel",
+  };
+  function tileZIndex(key) {
+    const order = [...document.querySelectorAll("#layers-step input[type=checkbox]")]
+      .map((input) => TILE_KEYS[input.id])
+      .filter(Boolean);
+    const index = order.indexOf(key);
+    return index < 0 ? 200 : 300 - index * 10;
+  }
   function tiles(key, name, url, options, run) {
     const layer = L.tileLayer(url, {
       maxZoom: 19,
-      zIndex: { land: 210, fuel: 220, burn: 225, burned: 230, hazard: 240 }[
-        key
-      ],
+      zIndex: tileZIndex(key),
       ...options,
     });
     let failed = false;
@@ -994,10 +1013,15 @@
       labels.textContent = `${hazardStyle.min} · Lower → ${hazardStyle.max} · Higher`;
       container.append(title, gradient, labels);
     }
+    if (overlays.has("recovery"))
+      row(
+        recoveryStyle?.color || "#2f8f5b",
+        `Recovery status${recoveryStyle ? ` · ${recoveryStyle.year}` : ""}`,
+      );
     if (overlays.has("burn"))
       row(
         burnStyle?.color || "#c2410c",
-        `Burned area${burnPeriod ? ` · ${burnPeriod}` : ""}`,
+        `Burned area${burnPeriod ? ` · ${burnPeriod === "yearly" && burnStyle ? burnStyle.year : burnPeriod}` : ""}`,
       );
     if (overlays.has("fuel")) {
       const p = document.createElement("p");
@@ -1175,17 +1199,34 @@
             run,
           );
         });
+      if ($("show-recovery").checked)
+        task("recovery", "Recovery 2025", async () => {
+          recoveryStyle = await json("/api/recovery/style");
+          tiles(
+            "recovery",
+            "Recovery 2025",
+            "/api/recovery/tiles/{z}/{x}/{y}.png",
+            {
+              opacity: Number($("recovery-opacity").value) / 100,
+              attribution: "Recovery status © SLIM",
+            },
+            run,
+          );
+        });
       if ($("show-burn").checked)
         task("burn", "Burned area", async () => {
           burnStyle = await json("/api/burn/style");
           if (monthMode) {
             // Detection & response always shows the month before the selected one.
             burnPeriod = previousMonth($("month-select").value);
-          } else {
+          } else if ($("burn-period")) {
             burnPeriod =
               $("burn-period").value === "monthly"
                 ? pickBurnMonth(burnStyle.months, query.end)
                 : "yearly";
+          } else {
+            // Restoration keeps a fixed 2025 yearly composite.
+            burnPeriod = "yearly";
           }
           const name =
             burnPeriod === "yearly"

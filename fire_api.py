@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 try:
-    from .landscape_client import LandscapeError, get_districts, get_district_summary, get_hazard_tile, hazard_style, burn_periods, get_burn_tile
+    from .landscape_client import LandscapeError, get_districts, get_district_summary, get_hazard_tile, hazard_style, burn_periods, get_burn_tile, recovery_style, get_recovery_tile
     from .burned_area_client import BurnedAreaError, get_burned_area_tile
     from .consolidate_15days import consolidate_fire_events
     from .firms_client import FirmsClient, FirmsError, parse_bbox
@@ -31,7 +31,7 @@ try:
     from .map_view import read_map_html
     from .qml_style import load_qml_style
 except ImportError:  # Allow: python slim_fire/fire_api.py
-    from landscape_client import LandscapeError, get_districts, get_district_summary, get_hazard_tile, hazard_style, burn_periods, get_burn_tile
+    from landscape_client import LandscapeError, get_districts, get_district_summary, get_hazard_tile, hazard_style, burn_periods, get_burn_tile, recovery_style, get_recovery_tile
     from burned_area_client import BurnedAreaError, get_burned_area_tile
     from consolidate_15days import consolidate_fire_events
     from firms_client import FirmsClient, FirmsError, parse_bbox
@@ -390,6 +390,33 @@ def burn_tile(z: int, x: int, y: int, period: str = Query("yearly")) -> Response
             z=z,
             period=period,
             cache_dir=os.getenv("BURN_CACHE_DIR", ".cache/burnscars"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LandscapeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return Response(
+        content=content,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@app.get("/api/recovery/style")
+def recovery_metadata() -> dict:
+    """Display colour and provenance for the 2025 SLIM recovery-status raster."""
+    return recovery_style()
+
+
+@app.get("/api/recovery/tiles/{z}/{x}/{y}.png", include_in_schema=False)
+def recovery_tile(z: int, x: int, y: int) -> Response:
+    """Render one tile of the 2025 SLIM recovery-status raster."""
+    try:
+        content = get_recovery_tile(
+            x=x,
+            y=y,
+            z=z,
+            cache_dir=os.getenv("RECOVERY_CACHE_DIR", ".cache/recovery"),
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

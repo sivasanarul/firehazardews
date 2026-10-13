@@ -245,7 +245,9 @@ function setup(
                   months: ["2025-01", "2025-06", "2025-07", "2025-12"],
                   color: "#c2410c",
                 }
-              : undefined);
+              : pathname === "/api/recovery/style"
+                ? { year: 2025, color: "#2f8f5b", label: "SLIM recovery status" }
+                : undefined);
     if (response instanceof Error) throw response;
     const data = typeof response === "function" ? await response() : response;
     return {
@@ -744,12 +746,13 @@ for (const scenario of ["prevention", "restoration"]) {
     assert.equal($("show-hazard").checked, scenario === "prevention");
     assert.equal($("show-districts").checked, true);
     assert.equal($("show-fuel").checked, false);
-    // Scenario 3 makes the SLIM burned-area mask its primary layer.
+    // Scenario 3 makes the SLIM recovery raster its primary layer.
     assert.equal($("show-burn").checked, scenario !== "prevention");
+    assert.equal($("show-recovery").checked, scenario === "restoration");
     assert.equal($("show-burned-area"), null);
     assert.equal(
       $("selected-count").textContent,
-      scenario === "prevention" ? "2 selected" : "3 selected",
+      scenario === "prevention" ? "2 selected" : "4 selected",
     );
     // The environmental-context panel opens only when a layer inside it is on.
     assert.equal(
@@ -773,7 +776,7 @@ for (const scenario of ["prevention", "restoration"]) {
     assert.equal($("fire-display").disabled, true);
     assert.ok(calls.includes("/api/districts"));
     assert.equal(
-      calls.some((url) => /fires|fire-events|recovery|propagation/.test(url)),
+      calls.some((url) => /fires|fire-events|propagation/.test(url)),
       false,
     );
     assert.ok(
@@ -785,7 +788,8 @@ for (const scenario of ["prevention", "restoration"]) {
     );
     assert.equal($("export").hidden, true);
     assert.equal($("area-step").hidden, false);
-    assert.equal($("dates-step").hidden, scenario === "prevention");
+    // Both prevention and restoration use fixed 2025 rasters and skip Dates.
+    assert.equal($("dates-step").hidden, true);
     assert.equal($("layers-step").hidden, false);
     assert.equal(
       window.document.querySelector(".scenario-home").getAttribute("href"),
@@ -794,17 +798,37 @@ for (const scenario of ["prevention", "restoration"]) {
   });
 }
 
-test("scenario 3 makes the SLIM burn mask its primary layer and resolves the monthly period", async (t) => {
-  const { $, change, submit, layers, calls } = setup(
+test("scenario 3 leads with recovery, fixes burned area to 2025, and skips Dates", async (t) => {
+  const { $, submit, layers, calls, window } = setup(
     t,
     {},
     { scenario: "restoration" },
   );
-  // Primary layer, defaulting to the yearly composite.
+  // No period selection: the Dates step is skipped.
+  assert.equal($("dates-step-link").hidden, true);
+  assert.equal($("step-caption").textContent, "STEP 1 OF 2");
+  // Recovery is the primary (first) layer and is on by default.
+  assert.equal($("recovery-card").hidden, false);
+  assert.equal($("show-recovery").checked, true);
+  assert.equal(
+    window.document
+      .querySelector("#layers-step")
+      .querySelector(".layer-card:not([hidden])"),
+    $("recovery-card"),
+  );
+  // Burned area is on but the period selector is removed (fixed 2025 yearly)
+  // and the label makes the year explicit.
   assert.equal($("show-burn").checked, true);
-  assert.equal($("burn-period").value, "yearly");
+  assert.equal($("burn-period"), null);
+  assert.equal(
+    $("burn-card").querySelector(".toggle-label span").textContent,
+    "Burned area · 2025",
+  );
   await submit();
-  assert.ok(calls.includes("/api/burn/style"));
+  assert.ok(calls.includes("/api/recovery/style"));
+  assert.ok(
+    layers.some((layer) => layer.url?.includes("/api/recovery/tiles/")),
+  );
   assert.ok(
     layers.some(
       (layer) =>
@@ -812,12 +836,14 @@ test("scenario 3 makes the SLIM burn mask its primary layer and resolves the mon
         layer.url.includes("period=yearly"),
     ),
   );
-  // Monthly mode follows the month of the selected "To" date.
-  change("burn-period", "monthly");
-  change("start", "2025-06-01");
-  change("end", "2025-06-30");
-  await submit();
-  assert.ok(layers.some((layer) => layer.url?.includes("period=2025-06")));
+  // Map stacking follows the layers-step order: recovery on top, then burned
+  // area, then land cover.
+  const z = (token) =>
+    layers.find((layer) => layer.url?.includes(token))?.options?.zIndex;
+  assert.ok(z("/api/recovery/tiles/") > z("/api/burn/tiles/"));
+  assert.ok(z("/api/burn/tiles/") > z("/api/land-cover/tiles/"));
+  assert.ok(calls.includes("/api/districts"));
+  assert.match($("status").textContent, /Recovery 2025 loaded/);
 });
 
 test("scenario 2 reviews a 2026 month and shows the previous month's burn mask", async (t) => {

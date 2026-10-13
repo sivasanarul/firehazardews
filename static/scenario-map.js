@@ -23,8 +23,11 @@
   for (const id of scenario.defaults)
     document.getElementById(id).checked = true;
   document.getElementById("hazard-card").hidden = scenario.id !== "prevention";
-  // SLIM burned area: primary (top) layer in restoration, first environmental
-  // context layer in detection & response, and not part of prevention.
+  // SLIM recovery status is the primary (top) layer in restoration.
+  const recoveryCard = document.getElementById("recovery-card");
+  recoveryCard.hidden = scenario.id !== "restoration";
+  // SLIM burned area: after recovery in restoration, first environmental context
+  // layer in detection & response, and not part of prevention.
   const contextSettings = document.querySelector(".context-settings");
   const burnCard = document.getElementById("burn-card");
   if (scenario.id === "prevention") {
@@ -57,6 +60,10 @@
     referenceNote.textContent =
       "District boundaries and the 2025 hazard index are fixed reference layers; they do not depend on an observation period.";
     document.getElementById("layers-step").append(referenceNote);
+  } else if (scenario.id === "restoration") {
+    referenceNote.textContent =
+      "District boundaries, the 2025 burned area and the 2025 recovery status are fixed reference layers; they do not depend on an observation period.";
+    document.getElementById("layers-step").append(referenceNote);
   } else {
     referenceNote.textContent =
       "District boundaries are independent of the selected dates.";
@@ -85,6 +92,17 @@
     const monthField = document.getElementById("month-field");
     if (monthField) monthField.hidden = true;
   }
+  if (scenario.id === "restoration") {
+    // Restoration is a fixed 2025 view: no period selection and the burned-area
+    // layer is always the 2025 yearly composite.
+    const burnLabel = document.querySelector("#burn-card .toggle-label span");
+    if (burnLabel) burnLabel.textContent = `Burned area · ${2025}`;
+    const burnPeriod = document.getElementById("burn-period");
+    if (burnPeriod) {
+      burnPeriod.closest("label")?.remove();
+      burnPeriod.remove();
+    }
+  }
   if (scenario.id !== "response") {
     document.getElementById("fire-card").hidden = true;
     document.getElementById("fire-display").disabled = true;
@@ -93,6 +111,6 @@
     document.getElementById("loaded-period").textContent =
       scenario.id === "prevention"
         ? "Choose an area to explore the landscape."
-        : "Choose an area and period to explore the landscape.";
+        : "Choose an area to explore the 2025 recovery.";
   }
 })();

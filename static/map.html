@@ -381,6 +381,33 @@
                   />
                 </div>
               </div>
+              <div class="layer-card" id="recovery-card" hidden>
+                <label class="layer-heading toggle-label" for="show-recovery"
+                  ><input
+                    id="show-recovery"
+                    type="checkbox"
+                    aria-controls="recovery-settings"
+                    aria-expanded="false"
+                  /><span>Recovery status · 2025</span></label
+                >
+                <p class="field-note">
+                  Primary restoration layer. Areas detected as recovered over
+                  the 2025 period.
+                </p>
+                <div class="layer-settings" id="recovery-settings" hidden>
+                  <label class="range-label" for="recovery-opacity"
+                    >Opacity<output id="recovery-opacity-value"
+                      >80%</output
+                    ></label
+                  ><input
+                    id="recovery-opacity"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="80"
+                  />
+                </div>
+              </div>
               <div class="layer-card" id="burn-card" hidden>
                 <label class="layer-heading toggle-label" for="show-burn"
                   ><input
@@ -694,15 +721,20 @@
           coverage. Hover a district for its name and province. Boundaries are
           independent of the observation period.
         </dd>
+        <dt>Recovery status · 2025</dt>
+        <dd>
+          Primary restoration layer. SLIM satellite raster marking areas
+          detected as recovered over 2025. It is a binary classification and
+          does not depend on an observation period.
+        </dd>
         <dt>Burned area</dt>
         <dd>
           A satellite burn-scar mask published monthly (2025–2026) plus a
           full-year 2025 composite. Detection & response shows a chosen 2026
           month of fire activity together with the burned-area mask of the
-          <em>previous</em> month. In restoration, “Monthly” follows the month
-          of the selected “To” date and “Yearly” is the 2025 composite. Cells
-          are a binary burned/not-burned classification, not a severity or
-          perimeter measure.
+          <em>previous</em> month. Restoration always uses the fixed 2025 yearly
+          composite. Cells are a binary burned/not-burned classification, not a
+          severity or perimeter measure.
         </dd>
         <dt>Environmental layers</dt>
         <dd>

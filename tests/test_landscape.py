@@ -83,6 +83,20 @@ class LandscapeTests(unittest.TestCase):
         self.assertEqual(pixels[0, 1, 3], 0)
         self.assertEqual(pixels[0, 3, 3], 0)
 
+    def test_recovery_style_and_colorization(self):
+        style = landscape.recovery_style()
+        self.assertEqual(style["year"], 2025)
+        self.assertEqual(style["color"], landscape.RECOVERY_COLOR)
+        self.assertTrue(landscape.RECOVERY_URL.endswith(
+            "SLIM_RECOVERY_STATUS_20250101_20251231_WGS84_cog.tif"))
+        self.assertIn("/slim/fire/recovery", landscape.RECOVERY_URL)
+        values = np.array([[1, 0, 255, 1]])
+        mask = np.array([[1, 1, 0, 0]])
+        pixels = np.array(Image.open(BytesIO(landscape.colorize_recovery(values, mask))))
+        self.assertEqual(pixels[0, 0].tolist(), [0x2F, 0x8F, 0x5B, 255])
+        self.assertEqual(pixels[0, 1, 3], 0)
+        self.assertEqual(pixels[0, 3, 3], 0)
+
     def test_reader_tiles_cache_and_outside_extent(self):
         with TemporaryDirectory(dir=".cache") as directory:
             source = f"{directory}/hazard.tif"
@@ -111,6 +125,10 @@ class LandscapeTests(unittest.TestCase):
         self.assertEqual(client.get("/api/burn/tiles/6/36/34.png?period=2024-01").status_code, 422)
         with patch("fire_api.get_burn_tile", side_effect=landscape.LandscapeError("Source unavailable")):
             self.assertEqual(client.get("/api/burn/tiles/6/36/34.png").status_code, 502)
+        self.assertEqual(client.get("/api/recovery/style").json()["year"], 2025)
+        self.assertEqual(client.get("/api/recovery/tiles/2/99/0.png").status_code, 422)
+        with patch("fire_api.get_recovery_tile", side_effect=landscape.LandscapeError("Source unavailable")):
+            self.assertEqual(client.get("/api/recovery/tiles/6/36/34.png").status_code, 502)
         with patch("fire_api.get_hazard_tile", side_effect=landscape.LandscapeError("Source unavailable")):
             self.assertEqual(client.get("/api/hazard/tiles/6/36/34.png").status_code, 502)
 

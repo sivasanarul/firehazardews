@@ -65,16 +65,12 @@ window.SLIM_SCENARIOS = [
     question: "How does the landscape recover?",
     icon: "leaf",
     available: [
-      "Burned area (SLIM · monthly & yearly)",
+      "Recovery status · 2025",
+      "Burned area · 2025",
       "District boundaries",
       "Land cover",
     ],
     future: [
-      [
-        "Recovery map",
-        "Recovery raster layer · integration pending",
-        "Planned",
-      ],
       [
         "Emissions estimation",
         "“Pseudo emission” in the brief; scope to be clarified",
@@ -82,7 +78,7 @@ window.SLIM_SCENARIOS = [
       ],
       ["Carbon assessment", "Explore carbon impacts", "Concept"],
     ],
-    defaults: ["show-burn", "show-land-cover", "show-districts"],
-    note: "Explore the SLIM 2025 burned-area mask and land cover now. The recovery map is a planned feature.",
+    defaults: ["show-recovery", "show-burn", "show-land-cover", "show-districts"],
+    note: "Review the 2025 recovery status, burned area and land cover. Emissions and carbon assessment are future features.",
   },
 ];
