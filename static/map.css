@@ -1097,6 +1097,38 @@ input[type="range"] {
   text-shadow: none;
   font-size: 10px !important;
 }
+.leaflet-tooltip.district-tip {
+  padding: 7px 11px;
+  border: 0;
+  border-radius: 8px;
+  background: #17322c;
+  box-shadow: 0 10px 24px #10221c4d;
+  color: #edf4ee;
+  font:
+    12px/1.35 "Segoe UI",
+    sans-serif;
+}
+.leaflet-tooltip.district-tip::before {
+  border-top-color: #17322c;
+  border-bottom-color: #17322c;
+}
+.district-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.district-tooltip strong {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.district-tooltip small {
+  color: #9fbfae;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
 .leaflet-popup-content-wrapper {
   overflow: hidden;
   padding: 0 !important;
