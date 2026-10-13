@@ -692,10 +692,10 @@ test("landing page links to all three workspaces and labels unavailable modules"
       "/map?scenario=restoration",
     ],
   );
-  assert.ok(
-    cards.every(
-      (card) => card.querySelectorAll(".future-modules .badge").length >= 2,
-    ),
+  assert.deepEqual(
+    cards.map((card) => card.querySelectorAll(".future-modules .badge").length),
+    [1, 3, 1],
+    "the roadmap follows the brief's scenario-specific future scope",
   );
   assert.match(cards[0].querySelector(".available").textContent, /Hazard map/);
   assert.doesNotMatch(
@@ -746,6 +746,14 @@ for (const scenario of ["prevention", "restoration"]) {
     assert.equal($("show-hazard").checked, scenario === "prevention");
     assert.equal($("show-districts").checked, true);
     assert.equal($("show-fuel").checked, false);
+    assert.equal(
+      $("show-fuel").closest(".layer-card").hidden,
+      scenario !== "response",
+    );
+    assert.equal(
+      $("show-precip-heatmap").closest(".layer-card").hidden,
+      scenario !== "response",
+    );
     // Scenario 3 makes the SLIM recovery raster its primary layer.
     assert.equal($("show-burn").checked, scenario !== "prevention");
     assert.equal($("show-recovery").checked, scenario === "restoration");

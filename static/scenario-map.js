@@ -10,10 +10,26 @@
   document.getElementById("workspace-emblem").innerHTML =
     `<svg><use href="#i-${scenario.icon}"/></svg>`;
   const context = document.getElementById("scenario-context");
-  const shortNames = ["Prepare", "Respond", "Restore"];
   // The header keeps only the scenario switcher; the descriptive copy lives on
   // the landing page, so it is not repeated in the compact workspace header.
-  context.innerHTML = `<nav class="scenario-navigation" aria-label="Scenario workspaces">${window.SLIM_SCENARIOS.map((item, index) => `<a href="/map?scenario=${item.id}" aria-label="${item.title}" ${item.id === scenario.id ? 'aria-current="page"' : ""}>${item.number} ${shortNames[index]}</a>`).join("")}</nav>`;
+  context.innerHTML = `<nav class="scenario-navigation" aria-label="Scenario workspaces">${window.SLIM_SCENARIOS.map((item) => `<a class="scenario-tab" href="/map?scenario=${item.id}" title="${item.title} · ${item.phase}" aria-label="${item.title}"${item.id === scenario.id ? ' aria-current="page"' : ""}><svg class="scenario-tab-icon" aria-hidden="true"><use href="#i-${item.icon}"></use></svg><span class="scenario-tab-label">${item.short}</span></a>`).join("")}</nav>`;
+  // Left/Right (and Home/End) move focus across the three scenario options.
+  const scenarioTabs = [...context.querySelectorAll(".scenario-tab")];
+  context
+    .querySelector(".scenario-navigation")
+    .addEventListener("keydown", (event) => {
+      const current = Math.max(scenarioTabs.indexOf(document.activeElement), 0);
+      let next = -1;
+      if (event.key === "ArrowRight")
+        next = (current + 1) % scenarioTabs.length;
+      else if (event.key === "ArrowLeft")
+        next = (current - 1 + scenarioTabs.length) % scenarioTabs.length;
+      else if (event.key === "Home") next = 0;
+      else if (event.key === "End") next = scenarioTabs.length - 1;
+      if (next < 0) return;
+      event.preventDefault();
+      scenarioTabs[next].focus();
+    });
   const roadmap = document.createElement("details");
   roadmap.className = "scenario-roadmap";
   roadmap.innerHTML = `<summary>Future features <span>${scenario.future.length} modules</span></summary><p>${scenario.note} These modules are preview only.</p><ul>${scenario.future.map(([name, detail, status]) => `<li><div><strong>${name}</strong><small>${detail}</small></div><span>${status}</span></li>`).join("")}</ul>`;
@@ -31,6 +47,15 @@
   // than the primary layers.
   const contextSettings = document.querySelector(".context-settings");
   const burnCard = document.getElementById("burn-card");
+  // The brief limits vegetation fuel and precipitation to the response
+  // workflow. Land cover remains available in every scenario.
+  for (const id of ["show-fuel", "show-precip-heatmap"]) {
+    const input = document.getElementById(id);
+    const card = input?.closest(".layer-card");
+    if (!input || !card) continue;
+    input.checked = false;
+    card.hidden = scenario.id !== "response";
+  }
   if (scenario.id === "prevention") {
     burnCard.hidden = true;
   } else {

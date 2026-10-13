@@ -136,10 +136,18 @@ The shared catalogue in `static/scenarios.js` supplies landing cards and map
 roadmaps. Greyed roadmap entries are informational and cannot load data. **Planned**
 includes the brief's future prototype modules and integrations still needed by this
 viewer (risk assessment, fire propagation).
-**Concept** covers sensors, emissions, and carbon. Risk assessment is **Planned**.
+**Concept** covers ground sensors and pseudo emission. Risk assessment is **Planned**.
 The GWIS near-real-time burned-area layer is not currently exposed in the UI;
-the SLIM monthly/yearly burn masks replace it. Emissions retains the brief's
+the SLIM monthly/yearly burn masks replace it. Pseudo emission retains the brief's
 uncertainty about its scope.
+
+### Environmental context and future scope
+
+Environmental context follows the scenario brief: prevention provides land
+cover; detection and response provides land cover, burned area, vegetation fuel,
+and precipitation; restoration provides burned area and land cover. District
+boundaries remain the common reporting reference. Ward-level units, controls,
+endpoints, and summaries are intentionally out of scope at this stage.
 
 The hero cycle links directly to each scenario. Hovering or keyboard-focusing a
 cycle link or scenario card highlights its counterpart and previews the stage in
