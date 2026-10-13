@@ -2,6 +2,7 @@
 .landing .cycle { opacity: 1; }
 .landing .cycle-label {
   text-decoration: none;
+  font-size: 12px;
   border: 1px solid transparent;
   border-radius: 6px;
   padding: 9px 12px;
@@ -15,9 +16,9 @@
 }
 .landing .cycle-label::before { content: ''; display: inline-block; width: 5px; height: 5px; margin-right: 7px; border-radius: 50%; background: currentColor; }
 .landing .cycle-center { pointer-events: none; width: 140px; }
-.landing #cycle-kicker { display: inline-block; font-size: 13px; color: #6b7b72; }
-.landing #cycle-word { display: inline-block; font-size: 26px; margin-top: 4px; }
-.landing .cycle-hint { position: absolute; bottom: -27px; left: 0; right: 0; text-align: center; font-size: 10px; color: #77856f; letter-spacing: .3px; }
+.landing #cycle-kicker { display: inline-block; font-size: 12px; font-weight: 400; color: #6b7b72; }
+.landing #cycle-word { display: inline-block; font-family: Georgia, serif; font-size: 24px; font-style: italic; font-weight: 400; margin-top: 4px; color: #ad643d; }
+.landing .cycle-hint { position: absolute; bottom: -27px; left: 0; right: 0; text-align: center; font-size: 12px; color: #77856f; letter-spacing: 0; }
 .landing .orbit { transition: border-color .3s ease, transform .4s ease, opacity .3s ease; }
 .landing .cycle[data-active="prevention"] .orbit { border-color: #a2b89b; }
 .landing .cycle[data-active="response"] .orbit { border-color: #d9aa86; }

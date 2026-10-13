@@ -115,13 +115,15 @@ visual browser review.
 The root URL (`/`) introduces three workflows from the EWS brief. Each opens the
 existing map design with scenario-specific guidance and layer defaults:
 
-- `/map?scenario=prevention`: Prevention & preparedness; land cover and fuel.
-- `/map?scenario=response`: Detection & response; FIRMS detections, preserving the original workflow.
-- `/map?scenario=restoration`: Restoration & adaptation; burned area and land cover.
+- `/map?scenario=prevention`: Prevention & preparedness; 2025 hazard index and districts.
+- `/map?scenario=response`: Detection & response; FIRMS detections and districts, preserving the original workflow.
+- `/map?scenario=restoration`: Restoration & adaptation; burned area, land cover and districts.
 
 `/map` and unknown scenario values default to detection and response. The header's
 **All scenarios** link returns to the landing page. No observation data loads until
-**Explore map** is selected. All existing layers remain selectable in each scenario.
+**Explore map** is selected. FIRMS detections and event polygons are available only
+in scenario 2. Hazard is available in scenario 1; districts and environmental
+context layers are shared across scenarios.
 
 Both pages load `static/design.css` for shared colours, typography, scenario accents,
 and responsive refinements. `static/floating-map.css` adds the floating layout and
@@ -133,7 +135,7 @@ modules appear after the map setup, and SLIM branding sits at the bottom of each
 The shared catalogue in `static/scenarios.js` supplies landing cards and map
 roadmaps. Greyed roadmap entries are informational and cannot load data. **Planned**
 includes the brief's future prototype modules and integrations still needed by this
-viewer (hazard/recovery rasters, risk assessment, monthly/yearly summaries).
+viewer (recovery rasters, risk assessment, monthly/yearly summaries).
 **Concept** covers sensors, emissions, and carbon. Risk assessment is **Planned**.
 Existing GWIS burned-area tiles are not presented as completed monthly/annual
 analysis. Emissions retains the brief's uncertainty about its scope.
@@ -148,3 +150,28 @@ its activity line runs only while data requests or map tiles are pending.
 Run `node tests/ui/workspace.test.cjs` if the environment blocks the test runner's
 child process. Tests mock data and Leaflet; a connected browser is still needed for
 visual layout and real tile review.
+
+### Hazard and district layers
+
+`landscape_client.py` reads the public objects under
+`https://s3.waw3-1.cloudferro.com/slim/fire/`:
+
+- `zambia_hazard_2025_continuous_cog.tif`: primary layer in preparedness, with a
+  fixed continuous 0–1 palette, legend and opacity control. The year is always
+  2025, independent of the observation dates. Nodata and tiles outside its extent
+  are transparent. Tiles are read through COG range requests and cached in
+  `.cache/hazard` (override with `HAZARD_CACHE_DIR`).
+- `zambia_districts.geojson`: reference boundaries enabled in every scenario.
+  The supplied file contains 56 districts in ESRI:102022; the API reprojects it
+  to WGS 84 and retains district/province names and codes. Its coverage is used
+  as supplied. Hover or click for names; boundaries do not create fire results
+  or district-level hazard statistics.
+
+Routes: `/api/hazard/style`, `/api/hazard/tiles/{z}/{x}/{y}.png`, `/api/districts`.
+District geometry is cached in process memory; restart the API after replacing
+that source. Clear the hazard tile cache if replacing the raster at the same URL.
+Recovery and the new monthly/yearly burned-area rasters remain planned; the
+existing GWIS burned-area layer remains available.
+
+Run offline GIS/API checks with
+`python -m unittest discover -s tests -p test_landscape.py`.

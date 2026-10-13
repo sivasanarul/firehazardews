@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 try:
+    from .landscape_client import LandscapeError, get_districts, get_district_summary, get_hazard_tile, hazard_style
     from .burned_area_client import BurnedAreaError, get_burned_area_tile
     from .consolidate_15days import consolidate_fire_events
     from .firms_client import FirmsClient, FirmsError, parse_bbox
@@ -27,9 +28,10 @@ try:
         landcover_url,
     )
     from .precipitation_client import PrecipitationError, get_precipitation, get_precipitation_for_tile
-    from .map_view import MAP_HTML
+    from .map_view import read_map_html
     from .qml_style import load_qml_style
 except ImportError:  # Allow: python slim_fire/fire_api.py
+    from landscape_client import LandscapeError, get_districts, get_district_summary, get_hazard_tile, hazard_style
     from burned_area_client import BurnedAreaError, get_burned_area_tile
     from consolidate_15days import consolidate_fire_events
     from firms_client import FirmsClient, FirmsError, parse_bbox
@@ -42,23 +44,39 @@ except ImportError:  # Allow: python slim_fire/fire_api.py
         landcover_url,
     )
     from precipitation_client import PrecipitationError, get_precipitation, get_precipitation_for_tile
-    from map_view import MAP_HTML
+    from map_view import read_map_html
     from qml_style import load_qml_style
 
 
 app = FastAPI(title="SLIM Fire API", version="0.1.0")
 app.add_middleware(GZipMiddleware, minimum_size=1_000)
-app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
+
+
+class RevalidatingStaticFiles(StaticFiles):
+    """Serve assets that must be revalidated so edits appear without a hard refresh.
+
+    Without an explicit Cache-Control header browsers fall back to heuristic
+    caching and can keep serving stale HTML, JavaScript or CSS after an update.
+    """
+
+    def file_response(self, *args, **kwargs) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/static", RevalidatingStaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-def index() -> str:
-    return (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+def index() -> HTMLResponse:
+    html = (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/map", response_class=HTMLResponse, include_in_schema=False)
-def fire_map() -> str:
-    return MAP_HTML
+def fire_map() -> HTMLResponse:
+    return HTMLResponse(read_map_html(), headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/test/precipitation", response_class=HTMLResponse, include_in_schema=False)
@@ -332,6 +350,39 @@ def burned_area_tile(
         media_type="image/png",
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+@app.get("/api/districts")
+def districts() -> JSONResponse:
+    try:
+        return JSONResponse(get_districts(), headers={"Cache-Control": "public, max-age=3600"})
+    except LandscapeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/districts/summary")
+def districts_summary() -> JSONResponse:
+    """District names, provinces and bounding boxes for the area picker."""
+    try:
+        return JSONResponse(get_district_summary(), headers={"Cache-Control": "public, max-age=3600"})
+    except LandscapeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/hazard/style")
+def hazard_metadata() -> dict:
+    return hazard_style()
+
+
+@app.get("/api/hazard/tiles/{z}/{x}/{y}.png", include_in_schema=False)
+def hazard_tile(z: int, x: int, y: int) -> Response:
+    try:
+        content = get_hazard_tile(x, y, z, os.getenv("HAZARD_CACHE_DIR", ".cache/hazard"))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LandscapeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return Response(content, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/api/land-cover/selection")
