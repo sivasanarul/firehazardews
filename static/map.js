@@ -16,6 +16,8 @@
   let generation = 0;
   let palette = [];
   let hazardStyle = null;
+  let burnStyle = null;
+  let burnPeriod = null;
   let setupStep = 0;
   let unlockedStep = 0;
   let currentPanel = "explore";
@@ -100,8 +102,8 @@
       Number($("fire-display").value !== "none") +
       [
         "show-hazard",
+        "show-burn",
         "show-districts",
-        "show-burned-area",
         "show-land-cover",
         "show-fuel",
         "show-precip-heatmap",
@@ -630,10 +632,81 @@
         preset.classList.remove("active");
       refreshHeaderContext();
     });
+  // Detection & response inspects a single 2026 month. Choosing a month writes
+  // the equivalent start/end range so every downstream layer keeps working.
+  const monthMode = scenario?.id === "response";
+  const MONTH_NAMES = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+  const yearMonths = (year) => {
+    const now = new Date();
+    const last = now.getFullYear() === year ? now.getMonth() + 1 : 12;
+    return Array.from(
+      { length: last },
+      (_, index) => `${year}-${String(index + 1).padStart(2, "0")}`,
+    );
+  };
+  const monthBounds = (period) => {
+    const [year, month] = period.split("-").map(Number);
+    const lastDay = new Date(year, month, 0).getDate();
+    const day = (value) => String(value).padStart(2, "0");
+    return {
+      start: `${period}-01`,
+      end: `${period}-${day(lastDay)}`,
+    };
+  };
+  const previousMonth = (period) => {
+    let [year, month] = period.split("-").map(Number);
+    month -= 1;
+    if (month === 0) {
+      month = 12;
+      year -= 1;
+    }
+    return `${year}-${String(month).padStart(2, "0")}`;
+  };
+  function applyMonth(period) {
+    const { start, end } = monthBounds(period);
+    $("start").value = start;
+    $("end").value = end;
+    refreshHeaderContext();
+  }
+  function populateMonthSelect() {
+    const select = $("month-select");
+    if (!select) return;
+    const months = yearMonths(2026);
+    select.replaceChildren();
+    for (const period of months) {
+      const option = document.createElement("option");
+      option.value = period;
+      const [year, month] = period.split("-").map(Number);
+      option.textContent = `${MONTH_NAMES[month - 1]} ${year}`;
+      select.append(option);
+    }
+    select.value = months[months.length - 1] || "";
+    if (select.value) applyMonth(select.value);
+  }
+  if (monthMode) {
+    populateMonthSelect();
+    $("month-select").addEventListener("change", () => {
+      applyMonth($("month-select").value);
+      dirty();
+    });
+  }
   const toggles = [
     "show-hazard",
+    "show-burn",
     "show-districts",
-    "show-burned-area",
     "show-land-cover",
     "show-fuel",
     "show-precip-heatmap",
@@ -666,6 +739,7 @@
   selectionChanged();
   for (const [id, key] of [
     ["hazard-opacity", "hazard"],
+    ["burn-opacity", "burn"],
     ["land-cover-opacity", "land"],
     ["fuel-opacity", "fuel"],
     ["precip-heatmap-opacity", "rain"],
@@ -734,7 +808,9 @@
   function tiles(key, name, url, options, run) {
     const layer = L.tileLayer(url, {
       maxZoom: 19,
-      zIndex: { land: 210, fuel: 220, burned: 230, hazard: 240 }[key],
+      zIndex: { land: 210, fuel: 220, burn: 225, burned: 230, hazard: 240 }[
+        key
+      ],
       ...options,
     });
     let failed = false;
@@ -757,6 +833,24 @@
     });
     layer.addTo(map);
     return layer;
+  }
+  // The monthly burn mask follows the month of the selected end date; when that
+  // month is not published, the nearest available month is used (and shown).
+  function pickBurnMonth(months, endDate) {
+    if (!Array.isArray(months) || !months.length) return "yearly";
+    const target = String(endDate || "").slice(0, 7);
+    if (months.includes(target)) return target;
+    const index = (value) => {
+      const [year, month] = String(value).split("-").map(Number);
+      return Number.isFinite(year) && Number.isFinite(month)
+        ? year * 12 + month
+        : NaN;
+    };
+    const wanted = index(target);
+    if (!Number.isFinite(wanted)) return months[months.length - 1];
+    return months
+      .map((month) => [month, Math.abs(index(month) - wanted)])
+      .sort((a, b) => a[1] - b[1])[0][0];
   }
   const popupLabels = {
     fire_id: "Event ID",
@@ -901,11 +995,11 @@
       labels.textContent = `${hazardStyle.min} · Lower → ${hazardStyle.max} · Higher`;
       container.append(title, gradient, labels);
     }
-    if (overlays.has("burned")) {
-      const p = document.createElement("p");
-      p.textContent = "Burned area · GWIS source colors";
-      container.append(p);
-    }
+    if (overlays.has("burn"))
+      row(
+        burnStyle?.color || "#c2410c",
+        `Burned area · SLIM${burnPeriod ? ` · ${burnPeriod}` : ""}`,
+      );
     if (overlays.has("fuel")) {
       const p = document.createElement("p");
       p.textContent = "Vegetation fuel · GWIS source colors";
@@ -1081,6 +1175,33 @@
             run,
           );
         });
+      if ($("show-burn").checked)
+        task("burn", "Burned area", async () => {
+          burnStyle = await json("/api/burn/style");
+          if (monthMode) {
+            // Detection & response always shows the month before the selected one.
+            burnPeriod = previousMonth($("month-select").value);
+          } else {
+            burnPeriod =
+              $("burn-period").value === "monthly"
+                ? pickBurnMonth(burnStyle.months, query.end)
+                : "yearly";
+          }
+          const name =
+            burnPeriod === "yearly"
+              ? `Burned area ${burnStyle.year}`
+              : `Burned area ${burnPeriod}`;
+          tiles(
+            "burn",
+            name,
+            `/api/burn/tiles/{z}/{x}/{y}.png?period=${encodeURIComponent(burnPeriod)}`,
+            {
+              opacity: Number($("burn-opacity").value) / 100,
+              attribution: "Burned area © SLIM",
+            },
+            run,
+          );
+        });
       if ($("show-districts").checked)
         task("districts", "District boundaries", async () => {
           const data = await loadDistrictGeometry();
@@ -1123,20 +1244,6 @@
             `${data.features.length} district boundaries loaded`,
           );
         });
-      if ($("show-burned-area").checked)
-        task("burned", "Burned area", () =>
-          tiles(
-            "burned",
-            "Burned area",
-            "/api/burned-area/tiles/{z}/{x}/{y}.png?" +
-              new URLSearchParams({ start: query.start, end: query.end }),
-            {
-              opacity: 0.7,
-              attribution: "Burned area © European Commission JRC / GWIS",
-            },
-            run,
-          ),
-        );
       if ($("show-land-cover").checked)
         task("land", "Land cover", async () => {
           const selection = await json(

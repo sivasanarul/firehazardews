@@ -213,6 +213,7 @@ p {
 .counter {
   font-size: 10px;
   color: var(--muted);
+  padding: 0 4px;
 }
 label {
   display: block;

@@ -54,7 +54,7 @@ body.landing {
 }
 
 body.landing main {
-  max-width: 1280px;
+  max-width: 1480px;
   padding: 0 6vw;
 }
 
@@ -320,7 +320,7 @@ body.landing .status-key .concept-dot {
 
 /* Footer -------------------------------------------------------------- */
 body.landing footer {
-  max-width: 1280px;
+  max-width: 1480px;
   margin: 0 auto;
   padding: 26px 6vw 40px;
   border-top: 1px solid var(--t-line);
@@ -1232,7 +1232,7 @@ body.map-page .layer-card.selected .layer-settings {
 }
 body.map-page .context-settings {
   margin-top: 12px;
-  padding: 6px 14px 12px;
+  padding: 14px 12px;
   border: 1px solid var(--t-line);
   border-radius: var(--t-r-sm);
   background: var(--t-surface-soft);

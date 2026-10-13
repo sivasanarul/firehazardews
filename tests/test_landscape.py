@@ -51,6 +51,38 @@ class LandscapeTests(unittest.TestCase):
         self.assertEqual(summary[0]["province"], "Eastern")
         self.assertEqual(summary[1]["bbox"], [27.0, -14.0, 28.0, -13.0])
 
+    def test_burn_mask_periods_and_urls(self):
+        name = lambda url: url.rsplit("/", 1)[-1]
+        self.assertEqual(name(landscape.burn_mask_url("yearly")),
+                         "SLIM_BURN_MASK_20250101_20251231_WGS84_cog.tif")
+        self.assertEqual(name(landscape.burn_mask_url("2025-07")),
+                         "SLIM_BURN_MASK_20250701_20250731_WGS84_cog.tif")
+        self.assertEqual(name(landscape.burn_mask_url("2025-02")),
+                         "SLIM_BURN_MASK_20250201_20250228_WGS84_cog.tif")
+        self.assertEqual(name(landscape.burn_mask_url("2026-01")),
+                         "SLIM_BURN_MASK_20260101_20260131_WGS84_cog.tif")
+        self.assertIn("/burnscar/2025/", landscape.burn_mask_url("2025-07"))
+        self.assertIn("/burnscar/2026/", landscape.burn_mask_url("2026-03"))
+        for bad in ("2024-07", "nonsense", "2025-13", "2026-13"):
+            with self.assertRaises(ValueError):
+                landscape.burn_mask_url(bad)
+        periods = landscape.burn_periods()
+        self.assertEqual(periods["year"], 2025)
+        self.assertEqual(len(periods["months"]), 12)
+        self.assertEqual(periods["months"][0], "2025-01")
+        self.assertEqual(periods["recent_year"], 2026)
+        self.assertEqual(periods["recent"][0], "2026-01")
+        self.assertTrue(all(item.startswith("2026-") for item in periods["recent"]))
+        self.assertTrue(1 <= len(periods["recent"]) <= 12)
+
+    def test_burn_mask_colorization_masks_non_burn_cells(self):
+        values = np.array([[1, 0, 255, 1]])
+        mask = np.array([[1, 1, 0, 0]])
+        pixels = np.array(Image.open(BytesIO(landscape.colorize_burn_mask(values, mask))))
+        self.assertEqual(pixels[0, 0].tolist(), [0xC2, 0x41, 0x0C, 255])
+        self.assertEqual(pixels[0, 1, 3], 0)
+        self.assertEqual(pixels[0, 3, 3], 0)
+
     def test_reader_tiles_cache_and_outside_extent(self):
         with TemporaryDirectory(dir=".cache") as directory:
             source = f"{directory}/hazard.tif"
@@ -75,6 +107,10 @@ class LandscapeTests(unittest.TestCase):
             self.assertEqual(client.get("/api/districts").status_code, 502)
         with patch("fire_api.get_district_summary", side_effect=landscape.LandscapeError("Source unavailable")):
             self.assertEqual(client.get("/api/districts/summary").status_code, 502)
+        self.assertEqual(client.get("/api/burn/style").json()["year"], 2025)
+        self.assertEqual(client.get("/api/burn/tiles/6/36/34.png?period=2024-01").status_code, 422)
+        with patch("fire_api.get_burn_tile", side_effect=landscape.LandscapeError("Source unavailable")):
+            self.assertEqual(client.get("/api/burn/tiles/6/36/34.png").status_code, 502)
         with patch("fire_api.get_hazard_tile", side_effect=landscape.LandscapeError("Source unavailable")):
             self.assertEqual(client.get("/api/hazard/tiles/6/36/34.png").status_code, 502)
 

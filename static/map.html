@@ -303,9 +303,17 @@
               <div class="settings-group-heading">
                 <span>02</span>
                 <div>
-                  <h3>Period</h3>
-                  <p>Set the observation window.</p>
+                  <h3 id="period-heading">Period</h3>
+                  <p id="period-subheading">Set the observation window.</p>
                 </div>
+              </div>
+              <div id="month-field" hidden>
+                <label for="month-select">Month</label
+                ><select id="month-select"></select>
+                <p class="field-note">
+                  Fire activity is shown for the selected month; the burned-area
+                  raster covers the previous month.
+                </p>
               </div>
               <div class="date-fields">
                 <div>
@@ -322,7 +330,7 @@
                 ><button type="button" data-days="15">Last 15 days</button
                 ><button type="button" data-days="30">Last 30 days</button>
               </div>
-              <p class="field-note">
+              <p class="field-note" id="period-note">
                 The example period is 1–15 July 2025. Change it to explore
                 another period.
               </p>
@@ -366,6 +374,38 @@
                     ></label
                   ><input
                     id="hazard-opacity"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="80"
+                  />
+                </div>
+              </div>
+              <div class="layer-card" id="burn-card" hidden>
+                <label class="layer-heading toggle-label" for="show-burn"
+                  ><input
+                    id="show-burn"
+                    type="checkbox"
+                    aria-controls="burn-settings"
+                    aria-expanded="false"
+                  /><span>Burned area · SLIM</span></label
+                >
+                <p class="field-note">
+                  Satellite burn-scar mask published monthly and as a yearly
+                  2025 composite.
+                </p>
+                <div class="layer-settings" id="burn-settings" hidden>
+                  <label for="burn-period">Burned-area period</label
+                  ><select id="burn-period">
+                    <option value="monthly">
+                      Monthly · month of the “To” date
+                    </option>
+                    <option value="yearly" selected>Yearly · 2025</option>
+                  </select>
+                  <label class="range-label" for="burn-opacity"
+                    >Opacity<output id="burn-opacity-value">80%</output></label
+                  ><input
+                    id="burn-opacity"
                     type="range"
                     min="0"
                     max="100"
@@ -433,15 +473,6 @@
                 <p class="field-note">
                   Combine fires with the surrounding landscape and rainfall.
                 </p>
-                <div class="layer-card">
-                  <label
-                    class="layer-heading toggle-label"
-                    for="show-burned-area"
-                    ><input id="show-burned-area" type="checkbox" /><span
-                      >Burned area</span
-                    ></label
-                  >
-                </div>
                 <div class="layer-card">
                   <label
                     class="layer-heading toggle-label"
@@ -667,11 +698,21 @@
           coverage. Hover a district for its name and province. Boundaries are
           independent of the observation period.
         </dd>
+        <dt>Burned area · SLIM</dt>
+        <dd>
+          A satellite burn-scar mask published monthly (2025–2026) plus a
+          full-year 2025 composite. Detection & response shows a chosen 2026
+          month of fire activity together with the burned-area mask of the
+          <em>previous</em> month. In restoration, “Monthly” follows the month of
+          the selected “To” date and “Yearly” is the 2025 composite. Cells are a
+          binary burned/not-burned classification, not a severity or perimeter
+          measure.
+        </dd>
         <dt>Environmental layers</dt>
         <dd>
-          GWIS supplies burned area and vegetation fuel. SLIM land cover uses
-          the year nearest your observation period. Precipitation uses the
-          selected window ending on your “To” date.
+          GWIS supplies near-real-time burned area and vegetation fuel. SLIM
+          land cover uses the year nearest your observation period.
+          Precipitation uses the selected window ending on your “To” date.
         </dd>
       </dl>
       <p class="help-note">

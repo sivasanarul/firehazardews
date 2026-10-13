@@ -23,6 +23,16 @@
   for (const id of scenario.defaults)
     document.getElementById(id).checked = true;
   document.getElementById("hazard-card").hidden = scenario.id !== "prevention";
+  // SLIM burned area: primary (top) layer in restoration, optional context in
+  // detection & response, and not part of the prevention workspace.
+  const burnCard = document.getElementById("burn-card");
+  if (scenario.id === "prevention") {
+    burnCard.hidden = true;
+  } else {
+    burnCard.hidden = false;
+    if (scenario.id === "response")
+      document.querySelector(".context-settings").append(burnCard);
+  }
   if (scenario.id === "prevention") {
     // Area is Zambia or a specific district only: no manual extent or coordinates.
     document.querySelector('#region option[value="custom"]')?.remove();
@@ -42,6 +52,29 @@
       "District boundaries are independent of the selected dates.";
     document.getElementById("dates-step").append(referenceNote);
   }
+  if (scenario.id === "response") {
+    // Detection & response reviews a single 2026 month: swap the date range for
+    // a month picker and fix the burned-area layer to the previous month.
+    const monthField = document.getElementById("month-field");
+    if (monthField) monthField.hidden = false;
+    const dateFields = document.querySelector("#dates-step .date-fields");
+    if (dateFields) dateFields.hidden = true;
+    const presets = document.querySelector("#dates-step .presets");
+    if (presets) presets.hidden = true;
+    const periodNote = document.getElementById("period-note");
+    if (periodNote) periodNote.hidden = true;
+    document.getElementById("period-heading").textContent = "Month";
+    document.getElementById("period-subheading").textContent =
+      "Choose a month to inspect.";
+    const burnPeriod = document.getElementById("burn-period");
+    if (burnPeriod) {
+      burnPeriod.closest("label")?.remove();
+      burnPeriod.remove();
+    }
+  } else {
+    const monthField = document.getElementById("month-field");
+    if (monthField) monthField.hidden = true;
+  }
   if (scenario.id !== "response") {
     document.getElementById("fire-card").hidden = true;
     document.getElementById("fire-display").disabled = true;
@@ -53,15 +86,5 @@
       scenario.id === "prevention"
         ? "Choose an area to explore the landscape."
         : "Choose an area and period to explore the landscape.";
-  }
-  if (scenario.id === "restoration") {
-    const note = document.createElement("p");
-    note.className = "field-note";
-    note.textContent =
-      "Burned area shows the existing GWIS layer for your selected dates. The yearly burned-area raster and recovery map are planned features.";
-    document
-      .getElementById("show-burned-area")
-      .closest(".layer-card")
-      .append(note);
   }
 })();

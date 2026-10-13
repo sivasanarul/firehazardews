@@ -19,6 +19,23 @@ const point = (properties = {}) => ({
 });
 const collection = (...features) => ({ type: "FeatureCollection", features });
 const flush = () => new Promise((resolve) => setImmediate(resolve));
+const yearMonths = (year) => {
+  const now = new Date();
+  const last = now.getFullYear() === year ? now.getMonth() + 1 : 12;
+  return Array.from(
+    { length: last },
+    (_, index) => `${year}-${String(index + 1).padStart(2, "0")}`,
+  );
+};
+const lastMonth2026 = () => {
+  const months = yearMonths(2026);
+  return months[months.length - 1];
+};
+const monthEnd = (period) => {
+  const [year, month] = period.split("-").map(Number);
+  const day = String(new Date(year, month, 0).getDate()).padStart(2, "0");
+  return `${period}-${day}`;
+};
 
 test("district labels are safe and stay separate from fire results", async (t) => {
   const { submit, $, layers, calls } = setup(t, {
@@ -222,7 +239,13 @@ function setup(
             ]
           : pathname === "/api/hazard/style"
             ? { year: 2025, min: 0, max: 1, colors: ["#ffffcc", "#800026"] }
-            : undefined);
+            : pathname === "/api/burn/style"
+              ? {
+                  year: 2025,
+                  months: ["2025-01", "2025-06", "2025-07", "2025-12"],
+                  color: "#c2410c",
+                }
+              : undefined);
     if (response instanceof Error) throw response;
     const data = typeof response === "function" ? await response() : response;
     return {
@@ -265,7 +288,7 @@ for (const scenario of ["prevention", "response", "restoration"]) {
     change("fire-display", "none");
     for (const id of [
       "show-hazard",
-      "show-burned-area",
+      "show-burn",
       "show-land-cover",
       "show-fuel",
       "show-precip-heatmap",
@@ -346,7 +369,7 @@ test("first visit makes no observation requests and clearly shows an unloaded st
 });
 
 test("invalid date order and coordinates do not request or clear observations", async (t) => {
-  const { change, submit, calls, $ } = setup(t);
+  const { change, submit, calls, $ } = setup(t, {}, { scenario: "restoration" });
   change("start", "2025-08-01");
   await submit();
   assert.match($("status").textContent, /end date/);
@@ -370,7 +393,7 @@ test("fire results update metrics, safe popups, result navigation, and export av
   await submit();
   assert.equal($("detection-count").textContent, "2");
   assert.equal($("max-frp").textContent, "38");
-  assert.equal($("period-days").textContent, "15");
+  assert.equal($("period-days").textContent, String(new Date(2026, Number(lastMonth2026().slice(5)), 0).getDate()));
   assert.equal($("results-list").children.length, 2);
   assert.equal($("results-list").querySelector("img"), null);
   assert.equal(
@@ -378,7 +401,7 @@ test("fire results update metrics, safe popups, result navigation, and export av
     null,
   );
   assert.equal($("export").disabled, false);
-  assert.ok(calls.some((url) => url.includes("start=2025-07-01")));
+  assert.ok(calls.some((url) => url.includes(`start=${lastMonth2026()}-01`)));
   $("results-list").firstChild.click();
   assert.equal(layers.find((layer) => layer.kind === "feature").open, true);
   assert.equal(mapCalls.at(-1)[0], "setView");
@@ -424,7 +447,11 @@ test("precipitation uses the selected end date, reports status, and changes only
   change("show-precip-heatmap", true);
   change("fire-display", "none");
   await submit();
-  assert.ok(calls.some((url) => url.includes("observation_date=2025-07-15")));
+  assert.ok(
+    calls.some((url) =>
+      url.includes(`observation_date=${monthEnd(lastMonth2026())}`),
+    ),
+  );
   assert.match($("status").textContent, /Precipitation: 1 observations/);
   $("precip-heatmap-opacity").value = "20";
   $("precip-heatmap-opacity").dispatchEvent(
@@ -454,6 +481,7 @@ test("turning every layer off removes old overlays and reports the empty selecti
   await submit();
   change("fire-display", "none");
   change("show-districts", false);
+  change("show-burn", false);
   await submit();
   assert.equal(
     layers.filter((layer) => layer.kind === "geojson" && !layer.removed).length,
@@ -465,10 +493,10 @@ test("turning every layer off removes old overlays and reports the empty selecti
 });
 
 test("tile errors stay visible after Leaflet emits load", async (t) => {
-  const { change, submit, $, layers } = setup(t);
-  change("show-burned-area", true);
+  const { change, submit, $, layers } = setup(t, {}, { scenario: "restoration" });
+  change("show-burn", true);
   await submit();
-  const layer = layers.find((layer) => layer.url?.includes("/api/burned-area"));
+  const layer = layers.find((layer) => layer.url?.includes("/api/burn/"));
   layer.emit("tileerror");
   layer.emit("load");
   assert.equal($("status").dataset.state, "error");
@@ -704,7 +732,9 @@ for (const scenario of ["prevention", "restoration"]) {
     assert.equal($("show-hazard").checked, scenario === "prevention");
     assert.equal($("show-districts").checked, true);
     assert.equal($("show-fuel").checked, false);
-    assert.equal($("show-burned-area").checked, scenario === "restoration");
+    // Scenario 3 makes the SLIM burned-area mask its primary layer.
+    assert.equal($("show-burn").checked, scenario !== "prevention");
+    assert.equal($("show-burned-area"), null);
     assert.equal(
       $("selected-count").textContent,
       scenario === "prevention" ? "2 selected" : "3 selected",
@@ -733,7 +763,7 @@ for (const scenario of ["prevention", "restoration"]) {
     assert.ok(
       layers.some((layer) =>
         layer.url?.includes(
-          scenario === "prevention" ? "/api/hazard/" : "/api/burned-area/",
+          scenario === "prevention" ? "/api/hazard/" : "/api/burn/",
         ),
       ),
     );
@@ -747,6 +777,70 @@ for (const scenario of ["prevention", "restoration"]) {
     );
   });
 }
+
+test("scenario 3 makes the SLIM burn mask its primary layer and resolves the monthly period", async (t) => {
+  const { $, change, submit, layers, calls } = setup(
+    t,
+    {},
+    { scenario: "restoration" },
+  );
+  // Primary layer, defaulting to the yearly composite.
+  assert.equal($("show-burn").checked, true);
+  assert.equal($("burn-period").value, "yearly");
+  await submit();
+  assert.ok(calls.includes("/api/burn/style"));
+  assert.ok(
+    layers.some(
+      (layer) =>
+        layer.url?.includes("/api/burn/tiles/") &&
+        layer.url.includes("period=yearly"),
+    ),
+  );
+  // Monthly mode follows the month of the selected "To" date.
+  change("burn-period", "monthly");
+  change("start", "2025-06-01");
+  change("end", "2025-06-30");
+  await submit();
+  assert.ok(layers.some((layer) => layer.url?.includes("period=2025-06")));
+});
+
+test("scenario 2 reviews a 2026 month and shows the previous month's burn mask", async (t) => {
+  const { $, submit, layers, calls, window } = setup(t, {}, { scenario: "response" });
+  // Month picker replaces the date range; burn + districts are on by default.
+  assert.equal($("month-field").hidden, false);
+  assert.equal($("dates-step").querySelector(".date-fields").hidden, true);
+  assert.equal($("show-burn").checked, true);
+  assert.equal($("show-districts").checked, true);
+  assert.equal($("burn-card").hidden, false);
+  assert.ok(window.document.querySelector(".context-settings #burn-card"));
+  // The picker lists 2026 months up to now and drives the fire query.
+  const months = [...$("month-select").options].map((option) => option.value);
+  assert.ok(months.length >= 1 && months.length <= 12);
+  assert.ok(months.every((value) => value.startsWith("2026-")));
+  assert.equal($("start").value, `${lastMonth2026()}-01`);
+  await submit();
+  assert.ok(calls.some((url) => url.includes(`start=${lastMonth2026()}-01`)));
+  // The burned-area raster is the month before the selected month.
+  let [year, month] = lastMonth2026().split("-").map(Number);
+  month -= 1;
+  if (month === 0) {
+    month = 12;
+    year -= 1;
+  }
+  const previous = `${year}-${String(month).padStart(2, "0")}`;
+  assert.ok(
+    layers.some(
+      (layer) =>
+        layer.url?.includes(`/api/burn/tiles/`) &&
+        layer.url.includes(`period=${previous}`),
+    ),
+  );
+});
+
+test("prevention hides the SLIM burn mask", async (t) => {
+  const { $ } = setup(t, {}, { scenario: "prevention" });
+  assert.equal($("burn-card").hidden, true);
+});
 
 test("selecting a district offers the district list, zooms to it, and highlights it", async (t) => {
   const { $, change, calls, layers, mapCalls } = setup(
@@ -884,7 +978,7 @@ test("an unknown scenario safely falls back to the original detection workflow",
   const { window, $ } = setup(t, {}, { scenario: "unknown" });
   assert.equal(window.document.body.dataset.scenario, "response");
   assert.equal($("fire-display").value, "fires");
-  assert.equal($("selected-count").textContent, "2 selected");
+  assert.equal($("selected-count").textContent, "3 selected");
 });
 
 test("cycle and cards respond to pointer and keyboard focus without changing navigation", (t) => {

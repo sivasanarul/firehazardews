@@ -135,10 +135,11 @@ modules appear after the map setup, and SLIM branding sits at the bottom of each
 The shared catalogue in `static/scenarios.js` supplies landing cards and map
 roadmaps. Greyed roadmap entries are informational and cannot load data. **Planned**
 includes the brief's future prototype modules and integrations still needed by this
-viewer (recovery rasters, risk assessment, monthly/yearly summaries).
+viewer (recovery rasters, risk assessment, propagation).
 **Concept** covers sensors, emissions, and carbon. Risk assessment is **Planned**.
-Existing GWIS burned-area tiles are not presented as completed monthly/annual
-analysis. Emissions retains the brief's uncertainty about its scope.
+The GWIS near-real-time burned-area layer is not currently exposed in the UI;
+the SLIM monthly/yearly burn masks replace it. Emissions retains the brief's
+uncertainty about its scope.
 
 The hero cycle links directly to each scenario. Hovering or keyboard-focusing a
 cycle link or scenario card highlights its counterpart and previews the stage in
@@ -167,11 +168,21 @@ visual layout and real tile review.
   as supplied. Hover or click for names; boundaries do not create fire results
   or district-level hazard statistics.
 
-Routes: `/api/hazard/style`, `/api/hazard/tiles/{z}/{x}/{y}.png`, `/api/districts`.
+- `burnscar/<year>/SLIM_BURN_MASK_<start>_<end>_WGS84_cog.tif`: monthly and
+  full-year SLIM burned-area masks (value `1` = burned). In detection &
+  response the layer is on by default and shows the burned-area mask of the
+  **previous** month relative to the selected 2026 month; in restoration it is
+  the primary layer (yearly 2025 composite by default, or the month of the
+  selected “To” date). Detection & response selects a single 2026 month
+  (January up to the current month) which drives the FIRMS fire query.
+  Rendered as a single ember tone with opacity control. Cached in
+  `.cache/burnscars` (override with `BURN_CACHE_DIR`).
+
+Routes: `/api/hazard/style`, `/api/hazard/tiles/{z}/{x}/{y}.png`,
+`/api/burn/style`, `/api/burn/tiles/{z}/{x}/{y}.png`, `/api/districts`.
 District geometry is cached in process memory; restart the API after replacing
-that source. Clear the hazard tile cache if replacing the raster at the same URL.
-Recovery and the new monthly/yearly burned-area rasters remain planned; the
-existing GWIS burned-area layer remains available.
+that source. Clear the hazard or burn tile cache if replacing a raster at the
+same URL. The recovery map, fire propagation and risk assessment remain planned.
 
 Run offline GIS/API checks with
 `python -m unittest discover -s tests -p test_landscape.py`.
