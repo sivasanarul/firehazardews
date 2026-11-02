@@ -21,6 +21,7 @@
   let burnPeriod = null;
   let recoveryStyle = null;
   let fwiResult = null;
+  let fireDateScale = null;
   let setupStep = 0;
   let unlockedStep = 0;
   let currentPanel = "explore";
@@ -69,6 +70,14 @@
   }
   const overlays = new Map();
   const layerStates = new Map();
+  let satelliteAcquisitions = [];
+  let selectedAcquisition = null;
+  let satelliteBbox = null;
+  let satelliteWindow = null;
+  let satelliteStyle = "true-color";
+  const satelliteSource = "all";
+  let satelliteFeature = null;
+  let satelliteSearch = 0;
   const number = (value) =>
     Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 });
   const setText = (id, text) => {
@@ -236,6 +245,8 @@
       $("start").value > $("end").value
     )
       throw new Error("Choose an end date on or after the start date.");
+    if (supportsFire && $("end").value > new Date().toISOString().slice(0, 10))
+      throw new Error("Choose today or an earlier end date.");
   }
   function advanceStep() {
     if (busy) return;
@@ -634,10 +645,11 @@
     $(id).addEventListener("input", () => {
       for (const preset of document.querySelectorAll("[data-days]"))
         preset.classList.remove("active");
+      if (monthMode) updatePeriodUi("custom");
       refreshHeaderContext();
     });
-  // Detection inspects a single 2026 month. Choosing a month writes
-  // the equivalent start/end range so every downstream layer keeps working.
+  // Detection period choices all write the equivalent start/end dates so every
+  // downstream layer continues to use one consistent query contract.
   const monthMode = scenario?.id === "response";
   const MONTH_NAMES = [
     "January",
@@ -670,6 +682,8 @@
       end: `${period}-${day(lastDay)}`,
     };
   };
+  const utcDateValue = (value) => value.toISOString().slice(0, 10);
+  const todayValue = () => utcDateValue(new Date());
   const previousMonth = (period) => {
     let [year, month] = period.split("-").map(Number);
     month -= 1;
@@ -680,13 +694,64 @@
     return `${year}-${String(month).padStart(2, "0")}`;
   };
   function applyMonth(period) {
-    const { start, end } = monthBounds(period);
+    const bounds = monthBounds(period);
+    const today = todayValue();
+    const start = bounds.start;
+    const end = bounds.start <= today && today <= bounds.end ? today : bounds.end;
     $("start").value = start;
     $("end").value = end;
     if ($("fwi-date")) {
-      const today = new Date().toISOString().slice(0, 10);
       $("fwi-date").value = today.startsWith(period) ? today : end;
     }
+    updatePeriodUi("month");
+    refreshHeaderContext();
+  }
+  function updatePeriodNote() {
+    if (!$("start").value || !$("end").value) return;
+    setText(
+      "period-note",
+      `Selected period: ${dateLabel($("start").value)} – ${dateLabel($("end").value)}. FIRMS requests use UTC calendar dates.`,
+    );
+  }
+  function updatePeriodUi(active) {
+    for (const button of document.querySelectorAll("[data-period]")) {
+      const selected = button.dataset.period === active;
+      button.classList.toggle("active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    }
+    for (const button of document.querySelectorAll("[data-period-mode]")) {
+      const selected = button.dataset.periodMode === active;
+      button.classList.toggle("active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    }
+    if ($("month-field")) $("month-field").hidden = active !== "month";
+    if ($("custom-period-fields"))
+      $("custom-period-fields").hidden = active !== "custom";
+    updatePeriodNote();
+  }
+  function applyRollingPeriod(days, active = String(days)) {
+    const end = new Date();
+    const start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - days + 1);
+    $("start").value = utcDateValue(start);
+    $("end").value = utcDateValue(end);
+    if ($("fwi-date")) $("fwi-date").value = $("end").value;
+    updatePeriodUi(active);
+    refreshHeaderContext();
+  }
+  function applyNamedPeriod(period) {
+    const today = new Date();
+    const current = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
+    if (period === "this-month") {
+      applyMonth(current);
+      updatePeriodUi(period);
+      return;
+    }
+    const bounds = monthBounds(previousMonth(current));
+    $("start").value = bounds.start;
+    $("end").value = bounds.end;
+    if ($("fwi-date")) $("fwi-date").value = bounds.end;
+    updatePeriodUi(period);
     refreshHeaderContext();
   }
   function populateMonthSelect() {
@@ -706,10 +771,26 @@
   }
   if (monthMode) {
     populateMonthSelect();
+    for (const id of ["start", "end"]) $(id).max = todayValue();
+    for (const button of document.querySelectorAll("[data-period]"))
+      button.addEventListener("click", () => {
+        const period = button.dataset.period;
+        if (/^\d+$/.test(period)) applyRollingPeriod(Number(period), period);
+        else applyNamedPeriod(period);
+        dirty();
+      });
+    for (const button of document.querySelectorAll("[data-period-mode]"))
+      button.addEventListener("click", () => {
+        const mode = button.dataset.periodMode;
+        updatePeriodUi(mode);
+        if (mode === "month") applyMonth($("month-select").value);
+        dirty();
+      });
     $("month-select").addEventListener("change", () => {
       applyMonth($("month-select").value);
       dirty();
     });
+    applyRollingPeriod(7, "7");
   }
   const toggles = [
     "show-fire",
@@ -904,11 +985,18 @@
     frp: "FRP (MW)",
     firms_source: "Source",
   };
-  const FIRE_RECENCY_COLORS = [
-    { hours: 6, color: "#d7301f", label: "Observed in the last 6 hours" },
-    { hours: 24, color: "#fc8d59", label: "Observed 6–24 hours ago" },
-    { hours: 72, color: "#fdcc8a", label: "Observed 1–3 days ago" },
-    { hours: Infinity, color: "#9ca3af", label: "Observed more than 3 days ago" },
+  const TURBO_COLORS = [
+    "#30123b",
+    "#4146a6",
+    "#4776ee",
+    "#36aaf9",
+    "#1ae4b6",
+    "#72fe5e",
+    "#c8ef34",
+    "#faba39",
+    "#f66b19",
+    "#c92903",
+    "#7a0403",
   ];
   function firePointRadius(properties = {}) {
     const value = Number(properties.frp ?? properties.max_frp);
@@ -926,11 +1014,54 @@
     const timestamp = Date.parse(value);
     return Number.isFinite(timestamp) ? timestamp : null;
   }
-  function fireRecencyColor(properties = {}) {
+  function observationDay(properties = {}) {
+    const timestamp = observationTime(properties);
+    if (timestamp === null) return null;
+    const date = new Date(timestamp);
+    return Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+    );
+  }
+  function interpolateHex(start, end, amount) {
+    const channels = (color) => [1, 3, 5].map((index) =>
+      parseInt(color.slice(index, index + 2), 16),
+    );
+    const from = channels(start);
+    const to = channels(end);
+    return `#${from.map((value, index) =>
+      Math.round(value + (to[index] - value) * amount)
+        .toString(16)
+        .padStart(2, "0"),
+    ).join("")}`;
+  }
+  function turboColor(amount) {
+    const position = Math.max(0, Math.min(1, amount)) * (TURBO_COLORS.length - 1);
+    const index = Math.min(TURBO_COLORS.length - 2, Math.floor(position));
+    return interpolateHex(TURBO_COLORS[index], TURBO_COLORS[index + 1], position - index);
+  }
+  function configureFireDateScale(start, end) {
+    const startTime = Date.parse(`${start}T00:00:00Z`);
+    const selectedEnd = Date.parse(`${end}T23:59:59.999Z`);
+    const now = Date.now();
+    const endTime = startTime <= now && now < selectedEnd ? now : selectedEnd;
+    const days = Math.max(1, Math.ceil((endTime - startTime) / 86_400_000));
+    fireDateScale = {
+      start: startTime,
+      end: Math.max(startTime, endTime),
+      intervals: Math.min(6, days),
+    };
+  }
+  function fireDateColor(properties = {}) {
     const timestamp = observationTime(properties);
     if (timestamp === null) return "#6b7280";
-    const ageHours = Math.max(0, (Date.now() - timestamp) / 3_600_000);
-    return FIRE_RECENCY_COLORS.find((item) => ageHours <= item.hours).color;
+    if (!fireDateScale || fireDateScale.end <= fireDateScale.start)
+      return turboColor(1);
+    return turboColor(
+      (timestamp - fireDateScale.start) /
+        (fireDateScale.end - fireDateScale.start),
+    );
   }
   function firePointStyle(feature) {
     const properties = feature?.properties || {};
@@ -938,7 +1069,7 @@
       radius: firePointRadius(properties),
       color: "#5f4b3f",
       weight: 1,
-      fillColor: fireRecencyColor(properties),
+      fillColor: fireDateColor(properties),
       fillOpacity: 0.9,
     };
   }
@@ -969,7 +1100,332 @@
       panel.append(row);
     }
     layer.bindPopup(panel);
+    if (isObservation && supportsFire)
+      layer.on("click", () => loadSatelliteAcquisitions(feature));
   }
+
+  function createFireLayer(data) {
+    return L.geoJSON(data, {
+      // Leaflet applies GeoJSON's `style` after `pointToLayer`. Return the
+      // point style here as well so the polygon fallback cannot overwrite the
+      // Turbo fill colour assigned to FIRMS circle markers.
+      style: (feature) =>
+        feature?.geometry?.type === "Point"
+          ? firePointStyle(feature)
+          : {
+              color: "#b96539",
+              weight: 1.5,
+              fillColor: "#ec965e",
+              fillOpacity: 0.28,
+            },
+      pointToLayer: (feature, latlng) =>
+        L.circleMarker(latlng, firePointStyle(feature)),
+      onEachFeature: popup,
+    }).addTo(map);
+  }
+  function fireDateLegendIntervals() {
+    if (!fireDateScale) return [];
+    const { start, end, intervals } = fireDateScale;
+    const duration = Math.max(1, end - start);
+    const format = new Intl.DateTimeFormat(undefined, {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    });
+    return Array.from({ length: intervals }, (_, index) => {
+      const from = start + (duration * index) / intervals;
+      const to = start + (duration * (index + 1)) / intervals;
+      return {
+        color: turboColor((index + 0.5) / intervals),
+        label: `${format.format(new Date(from))} – ${format.format(new Date(to))}`,
+      };
+    });
+  }
+
+  function satelliteDate(value) {
+    return new Date(value).toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }
+  function satelliteSourceLabel(source) {
+    return source === "landsat-8-9"
+      ? "Landsat 8/9"
+      : source === "all"
+        ? "Sentinel-2 + Landsat 8/9"
+        : "Sentinel-2";
+  }
+  function acquisitionLabel(acquisition) {
+    const platform = String(acquisition.platform || "").toLowerCase();
+    if (platform === "landsat-8") return "Landsat 8";
+    if (platform === "landsat-9") return "Landsat 9";
+    return satelliteSourceLabel(acquisition.source || satelliteSource);
+  }
+  function acquisitionKey(acquisition) {
+    return `${acquisition.source || ""}:${acquisition.id || acquisition.datetime}`;
+  }
+  function satelliteRadius() {
+    return Number($("satellite-radius").value);
+  }
+  function satelliteCoverageLabel(radius = satelliteRadius()) {
+    const span = radius * 2;
+    return `${number(span)} × ${number(span)} km`;
+  }
+  function satelliteBounds(longitude, latitude, radius) {
+    const latitudeDelta = radius / 111.32;
+    const longitudeDelta =
+      radius /
+      Math.max(1, 111.32 * Math.cos((latitude * Math.PI) / 180));
+    return [
+      Math.max(-180, longitude - longitudeDelta),
+      Math.max(-90, latitude - latitudeDelta),
+      Math.min(180, longitude + longitudeDelta),
+      Math.min(90, latitude + latitudeDelta),
+    ];
+  }
+  function highlightSatelliteSource(source) {
+    for (const option of document.querySelectorAll("[data-satellite-source]"))
+      option.classList.toggle("active", option.dataset.satelliteSource === source);
+  }
+  function clearSatelliteImagery(hidePanel = true) {
+    satelliteSearch += 1;
+    const overlay = overlays.get("satellite");
+    if (overlay) map.removeLayer(overlay);
+    overlays.delete("satellite");
+    satelliteAcquisitions = [];
+    selectedAcquisition = null;
+    satelliteBbox = null;
+    satelliteWindow = null;
+    highlightSatelliteSource(null);
+    $("satellite-controls").hidden = true;
+    $("satellite-timeline").replaceChildren();
+    $("satellite-map-bar").hidden = true;
+    if (hidePanel) {
+      satelliteFeature = null;
+      $("satellite-result").hidden = true;
+    }
+    renderLegend();
+  }
+  function renderSatelliteTimeline() {
+    const timeline = $("satellite-timeline");
+    timeline.replaceChildren();
+    if (!satelliteWindow?.reference_datetime) return;
+    const dayKey = (value) => new Date(value).toISOString().slice(0, 10);
+    const byDate = new Map();
+    for (const acquisition of satelliteAcquisitions) {
+      const key = dayKey(acquisition.datetime);
+      if (!byDate.has(key)) byDate.set(key, []);
+      byDate.get(key).push(acquisition);
+    }
+    const referenceKey = dayKey(satelliteWindow.reference_datetime);
+    const start = new Date(satelliteWindow.window_start);
+    for (let offset = 0; offset <= 25; offset += 1) {
+      const current = new Date(start);
+      current.setUTCDate(start.getUTCDate() + offset);
+      const key = dayKey(current);
+      const acquisitions = byDate.get(key) || [];
+      const day = document.createElement("div");
+      day.className = "satellite-day";
+      day.classList.toggle("reference", key === referenceKey);
+      const date = document.createElement("small");
+      date.textContent = `${current.getUTCDate()} ${current.toLocaleDateString(undefined, { month: "short", timeZone: "UTC" })}`;
+      day.append(date);
+      const actions = document.createElement("div");
+      actions.className = "satellite-day-actions";
+      if (!acquisitions.length) {
+        day.title = `${satelliteDate(current.toISOString())} — no acquisition`;
+      }
+      for (const acquisition of acquisitions) {
+        const button = document.createElement("button");
+        const label = acquisitionLabel(acquisition);
+        button.type = "button";
+        button.className = `available ${acquisition.source}`;
+        button.classList.toggle(
+          "active",
+          acquisitionKey(acquisition) === acquisitionKey(selectedAcquisition || {}),
+        );
+        button.textContent = label === "Sentinel-2" ? "S2" : label.replace("Landsat ", "L");
+        button.title = `${satelliteDate(acquisition.datetime)} — ${label} RGB available${acquisition.cloud_cover == null ? "" : ` — ${Math.round(acquisition.cloud_cover)}% scene cloud`}`;
+        button.setAttribute("aria-label", button.title);
+        button.addEventListener("click", () => showSatelliteAcquisition(acquisition));
+        actions.append(button);
+      }
+      day.append(actions);
+      timeline.append(day);
+    }
+  }
+  function showSatelliteAcquisition(acquisition) {
+    if (!satelliteBbox) return;
+    selectedAcquisition = acquisition;
+    highlightSatelliteSource(acquisition.source);
+    setText("satellite-map-date", satelliteDate(acquisition.datetime));
+    renderSatelliteTimeline();
+    const existing = overlays.get("satellite");
+    if (existing) map.removeLayer(existing);
+    const params = new URLSearchParams({
+      datetime: acquisition.datetime,
+      bbox: satelliteBbox.join(","),
+      style: satelliteStyle,
+      source: acquisition.source || satelliteSource,
+      width: "768",
+      height: "768",
+    });
+    const bounds = [
+      [satelliteBbox[1], satelliteBbox[0]],
+      [satelliteBbox[3], satelliteBbox[2]],
+    ];
+    const overlay = L.imageOverlay(`/api/cdse/image?${params}`, bounds, {
+      opacity: Number($("satellite-opacity").value) / 100,
+      interactive: false,
+      zIndex: 190,
+    });
+    overlay.on("load", () => {
+      setText(
+        "satellite-status",
+        `${acquisitionLabel(acquisition)} · ${satelliteDate(acquisition.datetime)} · ${satelliteStyle === "swir" ? "SWIR" : "True colour"}${acquisition.cloud_cover == null ? "" : ` · ${Math.round(acquisition.cloud_cover)}% scene cloud`}`,
+      );
+    });
+    overlay.on("error", () => {
+      setText(
+        "satellite-status",
+        "The satellite image could not be rendered. Check CDSE authentication and try again.",
+      );
+    });
+    overlay.addTo(map);
+    overlays.set("satellite", overlay);
+    overlays.get("fire")?.bringToFront?.();
+    setText("satellite-status", "Rendering the selected acquisition…");
+    renderLegend();
+  }
+  async function loadSatelliteAcquisitions(feature) {
+    if (!supportsFire || feature?.geometry?.type !== "Point") return;
+    satelliteFeature = feature;
+    const [longitude, latitude] = feature.geometry.coordinates;
+    $("satellite-radius").value = "5";
+    setText("satellite-radius-value", satelliteCoverageLabel());
+    const search = ++satelliteSearch;
+    const existing = overlays.get("satellite");
+    if (existing) map.removeLayer(existing);
+    overlays.delete("satellite");
+    $("satellite-result").hidden = false;
+    $("satellite-controls").hidden = true;
+    $("satellite-map-bar").hidden = true;
+    highlightSatelliteSource(null);
+    setText(
+      "satellite-status",
+      `Searching recent ${satelliteSourceLabel(satelliteSource)} acquisitions…`,
+    );
+    renderLegend();
+    try {
+      const timestamp = observationTime(feature.properties || {});
+      if (timestamp === null)
+        throw new Error("This FIRMS point has no usable observation time.");
+      const result = await json(
+        "/api/cdse/acquisitions?" +
+          new URLSearchParams({
+            longitude: String(longitude),
+            latitude: String(latitude),
+            reference_datetime: new Date(timestamp).toISOString(),
+            before_days: "10",
+            after_days: "15",
+            limit: "20",
+            radius_km: String(satelliteRadius()),
+            source: satelliteSource,
+          }),
+      );
+      if (search !== satelliteSearch) return;
+      satelliteAcquisitions = result.acquisitions || [];
+      satelliteBbox = result.bbox;
+      satelliteWindow = result;
+      $("satellite-map-bar").hidden = false;
+      setText(
+        "satellite-reference-label",
+        `FIRMS · ${satelliteDate(result.reference_datetime)}`,
+      );
+      setText("satellite-map-date", "No acquisition selected");
+      renderSatelliteTimeline();
+      if (!satelliteAcquisitions.length) {
+        setText(
+          "satellite-status",
+          `No ${satelliteSourceLabel(satelliteSource)} RGB acquisitions were found from 10 days before to 15 days after this observation.`,
+        );
+        return;
+      }
+      $("satellite-controls").hidden = false;
+      const closest = satelliteAcquisitions.reduce((best, item) =>
+        Math.abs(Date.parse(item.datetime) - timestamp) <
+        Math.abs(Date.parse(best.datetime) - timestamp)
+          ? item
+          : best,
+      );
+      showSatelliteAcquisition(closest);
+    } catch (error) {
+      if (search !== satelliteSearch) return;
+      const missingCredentials = /CDSE_CLIENT_ID|not configured/i.test(error.message);
+      setText(
+        "satellite-status",
+        missingCredentials
+          ? "Satellite imagery is ready but CDSE credentials are not configured on this server."
+          : `Satellite search failed: ${error.message}`,
+      );
+    }
+  }
+  $("satellite-clear").addEventListener("click", () =>
+    clearSatelliteImagery(),
+  );
+  $("satellite-map-close").addEventListener("click", () =>
+    clearSatelliteImagery(),
+  );
+  for (const button of document.querySelectorAll("[data-satellite-style]")) {
+    button.addEventListener("click", () => {
+      satelliteStyle = button.dataset.satelliteStyle;
+      for (const option of document.querySelectorAll("[data-satellite-style]"))
+        option.classList.toggle(
+          "active",
+          option.dataset.satelliteStyle === satelliteStyle,
+        );
+      if (selectedAcquisition) showSatelliteAcquisition(selectedAcquisition);
+    });
+  }
+  for (const button of document.querySelectorAll("[data-satellite-source]")) {
+    button.addEventListener("click", () => {
+      const source = button.dataset.satelliteSource;
+      const choices = satelliteAcquisitions.filter(
+        (acquisition) => acquisition.source === source,
+      );
+      const reference = Date.parse(satelliteWindow?.reference_datetime || "");
+      if (!choices.length || !Number.isFinite(reference)) return;
+      const closest = choices.reduce((best, item) =>
+        Math.abs(Date.parse(item.datetime) - reference) <
+        Math.abs(Date.parse(best.datetime) - reference)
+          ? item
+          : best,
+      );
+      showSatelliteAcquisition(closest);
+    });
+  }
+  $("satellite-opacity").addEventListener("input", () => {
+    setText("satellite-opacity-value", `${$("satellite-opacity").value}%`);
+    overlays
+      .get("satellite")
+      ?.setOpacity(Number($("satellite-opacity").value) / 100);
+    renderLegend();
+  });
+  $("satellite-radius").addEventListener("input", () => {
+    setText("satellite-radius-value", satelliteCoverageLabel());
+  });
+  $("satellite-radius").addEventListener("change", () => {
+    if (!satelliteFeature || !selectedAcquisition) return;
+    const [longitude, latitude] = satelliteFeature.geometry.coordinates;
+    satelliteBbox = satelliteBounds(
+      longitude,
+      latitude,
+      satelliteRadius(),
+    );
+    showSatelliteAcquisition(selectedAcquisition);
+  });
   function renderResults(data, fireLayer, mode) {
     const features = data.features;
     const isEvents = mode === "events";
@@ -1032,11 +1488,164 @@
         else
           map.fitBounds(layer.getBounds(), { padding: [50, 50], maxZoom: 12 });
         layer.openPopup();
+        if (!isEvents) loadSatelliteAcquisitions(feature);
         sidebar(false, true);
       });
       $("results-list").append(button);
     });
   }
+  function configureFrpFilter(data, mode) {
+    const panel = $("frp-filter");
+    const powers = data.features
+      .map((feature) => {
+        const value = feature.properties?.frp;
+        return value === null || value === undefined || value === ""
+          ? NaN
+          : Number(value);
+      })
+      .filter((value) => Number.isFinite(value) && value >= 0)
+      .sort((a, b) => a - b);
+    panel.hidden = mode !== "fires" || !powers.length;
+    if (panel.hidden) return;
+    const [low, high] = powers.reduce(
+      ([minimum, maximum], value) => [
+        Math.min(minimum, value),
+        Math.max(maximum, value),
+      ],
+      [Infinity, -Infinity],
+    );
+    const slider = $("frp-threshold");
+    const middle = Math.floor(powers.length / 2);
+    const median =
+      powers.length % 2
+        ? powers[middle]
+        : (powers[middle - 1] + powers[middle]) / 2;
+    slider.min = "0";
+    slider.max = "1000";
+    slider.value = "0";
+    slider.dataset.frpLow = String(low);
+    slider.dataset.frpHigh = String(high);
+    slider.disabled = low === high;
+    setText("frp-low-label", `${number(low)} MW · lowest`);
+    setText("frp-median-label", `${number(median)} MW · median`);
+    setText("frp-high-label", `${number(high)} MW · highest`);
+    setText("frp-threshold-value", `≥ ${number(low)} MW`);
+    setText(
+      "frp-filter-count",
+      `${number(data.features.length)} of ${number(data.features.length)} detections shown`,
+    );
+  }
+  function filterDateLabel(timestamp) {
+    return new Intl.DateTimeFormat(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(timestamp));
+  }
+  function configureDateFilter(data, mode) {
+    const panel = $("date-filter");
+    const times = data.features
+      .map((feature) => observationDay(feature.properties || {}))
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
+    panel.hidden = mode !== "fires" || !times.length;
+    if (panel.hidden) return;
+    const earliest = times[0];
+    const latest = times[times.length - 1];
+    const slider = $("date-threshold");
+    slider.value = "0";
+    slider.dataset.dateLow = String(earliest);
+    slider.dataset.dateHigh = String(latest);
+    slider.disabled = earliest === latest;
+    setText("date-low-label", `${filterDateLabel(earliest)} · earliest`);
+    setText("date-high-label", `${filterDateLabel(latest)} · latest`);
+    setText("date-threshold-value", `From ${filterDateLabel(earliest)}`);
+    setText(
+      "date-filter-count",
+      `${number(data.features.length)} of ${number(data.features.length)} detections shown`,
+    );
+  }
+  function frpThresholdFromSlider() {
+    const slider = $("frp-threshold");
+    const low = Number(slider.dataset.frpLow);
+    const high = Number(slider.dataset.frpHigh);
+    const position = Number(slider.value);
+    if (![low, high, position].every(Number.isFinite)) return NaN;
+    if (high <= low) return low;
+    if (position <= 0) return low;
+    if (position >= 1000) return high;
+    const ratio = Math.max(0, Math.min(1, position / 1000));
+    return Math.expm1(
+      Math.log1p(low) + ratio * (Math.log1p(high) - Math.log1p(low)),
+    );
+  }
+  function dateThresholdFromSlider() {
+    const slider = $("date-threshold");
+    const earliest = Number(slider.dataset.dateLow);
+    const latest = Number(slider.dataset.dateHigh);
+    const position = Number(slider.value);
+    if (![earliest, latest, position].every(Number.isFinite)) return NaN;
+    if (latest <= earliest || position <= 0) return earliest;
+    if (position >= 1000) return latest;
+    const day = 86_400_000;
+    const dayOffset = Math.round(
+      ((latest - earliest) / day) * (position / 1000),
+    );
+    return earliest + dayOffset * day;
+  }
+  function applyFireFilters() {
+    if (!loaded || loaded.mode !== "fires") return;
+    const frpThreshold = frpThresholdFromSlider();
+    const dateThreshold = dateThresholdFromSlider();
+    if (![frpThreshold, dateThreshold].every(Number.isFinite)) return;
+    const features = loaded.data.features.filter((feature) => {
+      const value = feature.properties?.frp;
+      const frp = value === null || value === undefined || value === ""
+        ? NaN
+        : Number(value);
+      const matchesFrp = Number.isFinite(frp)
+        ? frp >= frpThreshold
+        : Number($("frp-threshold").value) === 0;
+      const observed = observationDay(feature.properties || {});
+      const matchesDate = observed === null
+        ? Number($("date-threshold").value) === 0
+        : observed >= dateThreshold;
+      return matchesFrp && matchesDate;
+    });
+    const current = overlays.get("fire");
+    if (current) map.removeLayer(current);
+    const filtered = { ...loaded.data, features };
+    const layer = createFireLayer(filtered);
+    overlays.set("fire", layer);
+    loaded.filteredData = filtered;
+    setText("frp-threshold-value", `≥ ${number(frpThreshold)} MW`);
+    setText("date-threshold-value", `From ${filterDateLabel(dateThreshold)}`);
+    setText(
+      "frp-filter-count",
+      `${number(features.length)} of ${number(loaded.data.features.length)} detections shown`,
+    );
+    setText(
+      "date-filter-count",
+      `${number(features.length)} of ${number(loaded.data.features.length)} detections shown`,
+    );
+    renderResults(filtered, layer, loaded.mode);
+    if (satelliteFeature && !features.includes(satelliteFeature))
+      clearSatelliteImagery();
+    state(
+      "fire",
+      `${number(features.length)} of ${number(loaded.data.features.length)} fire detections shown`,
+    );
+    renderLegend();
+  }
+  $("frp-threshold").addEventListener("input", (event) => {
+    event.stopPropagation();
+    applyFireFilters();
+  });
+  $("date-threshold").addEventListener("input", (event) => {
+    event.stopPropagation();
+    applyFireFilters();
+  });
   function renderFwi(result) {
     fwiResult = result;
     $("fwi-result").hidden = false;
@@ -1124,10 +1733,22 @@
         }
         const note = document.createElement("p");
         note.className = "legend-note";
-        note.textContent = "Point area scales with FRP; colour shows age.";
+        const filters = [];
+        if (!$("frp-filter").hidden && Number($("frp-threshold").value) > 0)
+          filters.push(`FRP ≥ ${number(frpThresholdFromSlider())} MW`);
+        if (!$("date-filter").hidden && Number($("date-threshold").value) > 0)
+          filters.push(`date from ${filterDateLabel(dateThresholdFromSlider())}`);
+        note.textContent = filters.length
+          ? `Showing ${filters.join(" and ")}; point area scales with FRP and colour shows observation date.`
+          : "Point area scales with FRP; Turbo colour shows observation date.";
         container.append(title, sizeScale, note);
-        for (const item of FIRE_RECENCY_COLORS) row(item.color, item.label);
+        for (const item of fireDateLegendIntervals()) row(item.color, item.label);
       }
+    }
+    if (overlays.has("satellite")) {
+      const note = document.createElement("p");
+      note.textContent = `${acquisitionLabel(selectedAcquisition || {})} · ${satelliteStyle === "swir" ? "SWIR" : "True colour"} · ${satelliteCoverageLabel()} · ${Math.round(Number($("satellite-opacity").value))}% opacity`;
+      container.append(note);
     }
     if (overlays.has("fwi") && fwiResult) {
       const title = document.createElement("p");
@@ -1198,13 +1819,19 @@
       container.textContent = "Load layers to see their legend.";
   }
   function resetResults() {
+    clearSatelliteImagery();
     loaded = null;
+    fireDateScale = null;
     fwiResult = null;
     $("export").disabled = true;
     $("export").hidden = true;
     setText("detection-count", "—");
     setText("max-frp", "—");
     setText("results-badge", "0");
+    $("frp-filter").hidden = true;
+    $("frp-threshold").disabled = false;
+    $("date-filter").hidden = true;
+    $("date-threshold").disabled = false;
     setText(
       "results-description",
       "No fire observations loaded for this selection.",
@@ -1304,20 +1931,13 @@
           );
           if (!Array.isArray(data.features))
             throw new Error("No valid observation collection was returned.");
-          const layer = L.geoJSON(data, {
-            style: {
-              color: "#b96539",
-              weight: 1.5,
-              fillColor: "#ec965e",
-              fillOpacity: 0.28,
-            },
-            pointToLayer: (feature, latlng) =>
-              L.circleMarker(latlng, firePointStyle(feature)),
-            onEachFeature: popup,
-          }).addTo(map);
+          configureFireDateScale(query.start, query.end);
+          const layer = createFireLayer(data);
           overlays.set("fire", layer);
           loaded = { data, ...query, mode };
           renderResults(data, layer, mode);
+          configureFrpFilter(data, mode);
+          configureDateFilter(data, mode);
           $("export").disabled = false;
           $("export").hidden = false;
           explored = true;
@@ -1440,8 +2060,8 @@
         task("burn", "Burned area", async () => {
           burnStyle = await json("/api/burn/style");
           if (monthMode) {
-            // Detection always shows the month before the selected one.
-            burnPeriod = previousMonth($("month-select").value);
+            // Use the monthly burned-area layer before the active period's end.
+            burnPeriod = previousMonth(query.end.slice(0, 7));
           } else if ($("burn-period")) {
             burnPeriod =
               $("burn-period").value === "monthly"

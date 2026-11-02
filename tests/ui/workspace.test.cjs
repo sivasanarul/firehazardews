@@ -36,6 +36,12 @@ const monthEnd = (period) => {
   const day = String(new Date(year, month, 0).getDate()).padStart(2, "0");
   return `${period}-${day}`;
 };
+const utcToday = () => new Date().toISOString().slice(0, 10);
+const rollingStart = (days) => {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - days + 1);
+  return date.toISOString().slice(0, 10);
+};
 
 test("district labels are safe and stay separate from fire results", async (t) => {
   const { submit, $, layers, calls } = setup(t, {
@@ -216,11 +222,18 @@ function setup(
       const value = layer("geojson", options);
       const source = data.type === "FeatureCollection" ? data.features : [data];
       const features = source.map((feature) => {
-        if (feature.geometry?.type === "Point")
-          options.pointToLayer?.(feature, {
+        if (feature.geometry?.type === "Point") {
+          const pointLayer = options.pointToLayer?.(feature, {
             lat: feature.geometry.coordinates[1],
             lng: feature.geometry.coordinates[0],
           });
+          const style =
+            typeof options.style === "function"
+              ? options.style(feature)
+              : options.style;
+          if (pointLayer?.options && style)
+            Object.assign(pointLayer.options, style);
+        }
         const child = layer("feature");
         options.onEachFeature?.(feature, child);
         return child;
@@ -416,7 +429,7 @@ test("fire results update metrics, safe popups, result navigation, and export av
   assert.equal($("max-frp").textContent, "100");
   assert.equal(
     $("period-days").textContent,
-    String(new Date(2026, Number(lastMonth2026().slice(5)), 0).getDate()),
+    "7",
   );
   assert.equal($("results-list").children.length, 2);
   assert.equal($("results-list").querySelector("img"), null);
@@ -431,14 +444,161 @@ test("fire results update metrics, safe popups, result navigation, and export av
     fireMarkers[1].options.radius > fireMarkers[0].options.radius,
     true,
   );
-  assert.equal(fireMarkers[0].options.fillColor, "#fdcc8a");
-  assert.equal(fireMarkers[1].options.fillColor, "#d7301f");
+  assert.match(fireMarkers[0].options.fillColor, /^#[0-9a-f]{6}$/i);
+  assert.match(fireMarkers[1].options.fillColor, /^#[0-9a-f]{6}$/i);
+  assert.notEqual(fireMarkers[0].options.fillColor, fireMarkers[1].options.fillColor);
   assert.match($("legend-content").textContent, /size by FRP/i);
-  assert.match($("legend-content").textContent, /colour shows age/i);
-  assert.ok(calls.some((url) => url.includes(`start=${lastMonth2026()}-01`)));
+  assert.match($("legend-content").textContent, /colour shows observation date/i);
+  assert.ok(calls.some((url) => url.includes(`start=${rollingStart(7)}`)));
   $("results-list").firstChild.click();
   assert.equal(layers.find((layer) => layer.kind === "feature").open, true);
   assert.equal(mapCalls.at(-1)[0], "setView");
+});
+
+test("combined satellite timeline selects and highlights each imagery source", async (t) => {
+  const observed = "2026-10-20T10:00:00Z";
+  const { submit, $, calls, layers, window } = setup(t, {
+    "/api/fires": collection(point({ acq_datetime_utc: observed })),
+    "/api/cdse/acquisitions": {
+      bbox: [26.95, -13.05, 27.05, -12.95],
+      reference_datetime: observed,
+      window_start: "2026-10-10T10:00:00Z",
+      window_end: "2026-11-04T10:00:00Z",
+      source: "all",
+      acquisitions: [
+        {
+          id: "S2-test",
+          datetime: "2026-10-18T09:00:00Z",
+          platform: "sentinel-2c",
+          source: "sentinel-2",
+          cloud_cover: 4,
+        },
+        {
+          id: "LC09-test",
+          datetime: "2026-10-18T08:00:00Z",
+          platform: "landsat-9",
+          source: "landsat-8-9",
+          cloud_cover: 8,
+        },
+      ],
+    },
+  });
+  await submit();
+  layers.find((layer) => layer.kind === "feature")?.emit("click");
+  await flush();
+  await flush();
+  assert.ok(
+    calls.some(
+      (url) =>
+        url.startsWith("/api/cdse/acquisitions?") &&
+        new URL(url, "http://localhost").searchParams.get("source") ===
+          "all",
+    ),
+  );
+  const timelineButtons = [
+    ...$("satellite-timeline").querySelectorAll("button.available"),
+  ];
+  assert.deepEqual(
+    timelineButtons.map((button) => button.textContent),
+    ["S2", "L9"],
+  );
+  assert.equal(timelineButtons[0].closest(".satellite-day"), timelineButtons[1].closest(".satellite-day"));
+  const sentinelButton = timelineButtons.find((button) => button.textContent === "S2");
+  sentinelButton.click();
+  await flush();
+  assert.ok(
+    window.document
+      .querySelector('[data-satellite-source="sentinel-2"]')
+      .classList.contains("active"),
+  );
+  const landsatButton = timelineButtons.find((button) => button.textContent === "L9");
+  landsatButton.click();
+  await flush();
+  const image = layers.filter((layer) => layer.kind === "image").at(-1);
+  assert.equal(
+    new URL(image.url, "http://localhost").searchParams.get("source"),
+    "landsat-8-9",
+  );
+  assert.ok(
+    window.document
+      .querySelector('[data-satellite-source="landsat-8-9"]')
+      .classList.contains("active"),
+  );
+  assert.match($("satellite-status").textContent, /Landsat 9/);
+
+  const initialImage = layers.filter((layer) => layer.kind === "image").at(-1);
+  const initialParams = new URL(initialImage.url, "http://localhost").searchParams;
+  assert.equal(initialParams.get("width"), "768");
+  assert.equal($("satellite-radius-value").textContent, "10 × 10 km");
+  $("satellite-radius").value = "10";
+  $("satellite-radius").dispatchEvent(new window.Event("input", { bubbles: true }));
+  $("satellite-radius").dispatchEvent(new window.Event("change", { bubbles: true }));
+  const expandedImage = layers.filter((layer) => layer.kind === "image").at(-1);
+  const expandedParams = new URL(expandedImage.url, "http://localhost").searchParams;
+  const initialBbox = initialParams.get("bbox").split(",").map(Number);
+  const expandedBbox = expandedParams.get("bbox").split(",").map(Number);
+  assert.equal($("satellite-radius-value").textContent, "20 × 20 km");
+  assert.equal(expandedParams.get("datetime"), initialParams.get("datetime"));
+  assert.equal(expandedParams.get("source"), initialParams.get("source"));
+  assert.ok(expandedBbox[2] - expandedBbox[0] > initialBbox[2] - initialBbox[0]);
+});
+
+test("FRP slider filters loaded FIRMS points from highest to lowest", async (t) => {
+  const { submit, $, window } = setup(t, {
+    "/api/fires": collection(
+      point({ frp: 5, acq_datetime_utc: "2026-10-20T08:00:00Z" }),
+      point({ frp: 40, acq_datetime_utc: "2026-10-20T09:00:00Z" }),
+      point({ frp: 120, acq_datetime_utc: "2026-10-20T10:00:00Z" }),
+    ),
+  });
+  await submit();
+  const slider = $("frp-threshold");
+  assert.equal($("frp-filter").hidden, false);
+  assert.equal(Number(slider.dataset.frpLow), 5);
+  assert.equal(Number(slider.dataset.frpHigh), 120);
+  assert.equal($("frp-median-label").textContent, "40 MW · median");
+
+  slider.value = "1000";
+  slider.dispatchEvent(new window.Event("input", { bubbles: true }));
+  assert.equal($("detection-count").textContent, "1");
+  assert.match($("frp-filter-count").textContent, /1 of 3/);
+  assert.match($("legend-content").textContent, /FRP ≥ 120 MW/);
+
+  slider.value = "0";
+  slider.dispatchEvent(new window.Event("input", { bubbles: true }));
+  assert.equal($("detection-count").textContent, "3");
+  assert.match($("frp-filter-count").textContent, /3 of 3/);
+});
+
+test("date slider filters FIRMS points by UTC day and combines with FRP", async (t) => {
+  const { submit, $, window } = setup(t, {
+    "/api/fires": collection(
+      point({ frp: 5, acq_datetime_utc: "2026-10-05T23:30:00Z" }),
+      point({ frp: 40, acq_datetime_utc: "2026-10-15T01:00:00Z" }),
+      point({ frp: 120, acq_datetime_utc: "2026-10-25T18:00:00Z" }),
+    ),
+  });
+  await submit();
+  const dateSlider = $("date-threshold");
+  const frpSlider = $("frp-threshold");
+  assert.equal($("date-filter").hidden, false);
+  assert.match($("date-low-label").textContent, /2026.*earliest/);
+  assert.match($("date-high-label").textContent, /2026.*latest/);
+
+  dateSlider.value = "500";
+  dateSlider.dispatchEvent(new window.Event("input", { bubbles: true }));
+  assert.equal($("detection-count").textContent, "2");
+  assert.match($("date-threshold-value").textContent, /^From .*2026$/);
+  assert.match($("legend-content").textContent, /date from .*2026/);
+
+  frpSlider.value = "1000";
+  frpSlider.dispatchEvent(new window.Event("input", { bubbles: true }));
+  assert.equal($("detection-count").textContent, "1");
+  assert.match($("legend-content").textContent, /FRP ≥ 120 MW and date from/);
+
+  frpSlider.value = "0";
+  frpSlider.dispatchEvent(new window.Event("input", { bubbles: true }));
+  assert.equal($("detection-count").textContent, "2");
 });
 
 test("event mode uses its own endpoint and FRP fields; empty results show zero", async (t) => {
@@ -483,7 +643,7 @@ test("precipitation uses the selected end date, reports status, and changes only
   await submit();
   assert.ok(
     calls.some((url) =>
-      url.includes(`observation_date=${monthEnd(lastMonth2026())}`),
+      url.includes(`observation_date=${utcToday()}`),
     ),
   );
   assert.match($("status").textContent, /Precipitation: 1 observations/);
@@ -889,14 +1049,22 @@ test("scenario 4 leads with recovery, fixes burned area to 2025, and skips Dates
   assert.match($("status").textContent, /Recovery 2025 loaded/);
 });
 
-test("scenario 2 reviews a 2026 month and shows the previous month's burn mask", async (t) => {
+test("Detection offers quick, monthly, and custom periods", async (t) => {
   const { $, submit, layers, calls, window } = setup(
     t,
     {},
     { scenario: "response" },
   );
-  // Month picker replaces the date range; burn + districts are on by default.
-  assert.equal($("month-field").hidden, false);
+  assert.equal($("detection-period-options").hidden, false);
+  assert.deepEqual(
+    [...window.document.querySelectorAll("[data-period]")].map((button) => button.textContent),
+    ["Last 24h", "Last 48h", "Last 7 days", "Last 10 days", "Last 30 days", "This month", "Previous month"],
+  );
+  assert.equal(window.document.querySelector('[data-period="7"]').classList.contains("active"), true);
+  assert.equal($("start").value, rollingStart(7));
+  assert.equal($("end").value, utcToday());
+  assert.match($("period-note").textContent, /UTC calendar dates/);
+  assert.equal($("month-field").hidden, true);
   assert.equal($("dates-step").querySelector(".date-fields").hidden, true);
   assert.equal($("show-burn").checked, true);
   assert.equal($("show-districts").checked, true);
@@ -911,7 +1079,9 @@ test("scenario 2 reviews a 2026 month and shows the previous month's burn mask",
     $("burn-card").querySelector(".toggle-label span").textContent,
     "Burned area",
   );
-  // The picker lists 2026 months up to now and drives the fire query.
+  // Selecting a month reveals the picker and drives the fire query.
+  window.document.querySelector('[data-period-mode="month"]').click();
+  assert.equal($("month-field").hidden, false);
   const months = [...$("month-select").options].map((option) => option.value);
   assert.ok(months.length >= 1 && months.length <= 12);
   assert.ok(months.every((value) => value.startsWith("2026-")));
@@ -933,6 +1103,9 @@ test("scenario 2 reviews a 2026 month and shows the previous month's burn mask",
         layer.url.includes(`period=${previous}`),
     ),
   );
+  window.document.querySelector('[data-period-mode="custom"]').click();
+  assert.equal($("month-field").hidden, true);
+  assert.equal($("custom-period-fields").hidden, false);
 });
 
 test("detection loads numerical FWI at the selected extent centre", async (t) => {

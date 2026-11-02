@@ -1,10 +1,14 @@
 # Python bytecode
 __pycache__/
 *.py[cod]
+.env
 
 # Application caches
 .cache/
 .cache/*
+
+# Local credentials
+.env
 greennexus_ews.gpkg
 firehazardews.log
 uvicorn.log

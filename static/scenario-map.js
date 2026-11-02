@@ -96,19 +96,18 @@
     document.getElementById("dates-step").append(referenceNote);
   }
   if (scenario.id === "response") {
-    // Detection reviews a single 2026 month: swap the date range for
-    // a month picker and fix the burned-area layer to the previous month.
-    const monthField = document.getElementById("month-field");
-    if (monthField) monthField.hidden = false;
+    // Detection offers operational shortcuts, calendar months and a custom range.
+    const periodOptions = document.getElementById("detection-period-options");
+    if (periodOptions) periodOptions.hidden = false;
     const dateFields = document.querySelector("#dates-step .date-fields");
     if (dateFields) dateFields.hidden = true;
     const presets = document.querySelector("#dates-step .presets");
     if (presets) presets.hidden = true;
     const periodNote = document.getElementById("period-note");
-    if (periodNote) periodNote.hidden = true;
-    document.getElementById("period-heading").textContent = "Month";
+    if (periodNote) periodNote.hidden = false;
+    document.getElementById("period-heading").textContent = "Period";
     document.getElementById("period-subheading").textContent =
-      "Choose a month to inspect.";
+      "Choose when to inspect fire activity.";
     const burnPeriod = document.getElementById("burn-period");
     if (burnPeriod) {
       burnPeriod.closest("label")?.remove();

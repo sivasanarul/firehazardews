@@ -15,6 +15,17 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 try:
+    from .cdse_client import (
+        CDSEAuthenticationError,
+        CDSEConfigurationError,
+        CDSERequestError,
+        get_cdse_client,
+    )
+    from .cdse_imagery import (
+        CDSEImageryError,
+        render_satellite_image,
+        search_satellite_acquisitions,
+    )
     from .fire_weather_client import FireWeatherError, FireWeatherUnavailable, failed_fire_weather_result, get_ewds_fwi_raster, get_fire_weather_index, get_gwis_fwi_raster, get_gwis_fwi_tile
     from .landscape_client import LandscapeError, get_districts, get_district_summary, get_hazard_tile, hazard_style, burn_periods, get_burn_tile, recovery_style, get_recovery_tile
     from .burned_area_client import BurnedAreaError, get_burned_area_tile
@@ -32,6 +43,17 @@ try:
     from .map_view import read_map_html
     from .qml_style import load_qml_style
 except ImportError:  # Allow: python slim_fire/fire_api.py
+    from cdse_client import (
+        CDSEAuthenticationError,
+        CDSEConfigurationError,
+        CDSERequestError,
+        get_cdse_client,
+    )
+    from cdse_imagery import (
+        CDSEImageryError,
+        render_satellite_image,
+        search_satellite_acquisitions,
+    )
     from fire_weather_client import FireWeatherError, FireWeatherUnavailable, failed_fire_weather_result, get_ewds_fwi_raster, get_fire_weather_index, get_gwis_fwi_raster, get_gwis_fwi_tile
     from landscape_client import LandscapeError, get_districts, get_district_summary, get_hazard_tile, hazard_style, burn_periods, get_burn_tile, recovery_style, get_recovery_tile
     from burned_area_client import BurnedAreaError, get_burned_area_tile
@@ -377,6 +399,90 @@ def get_fire_data(bbox: str, start: date, end: date, sensor: str):
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/cdse/auth-status")
+def cdse_auth_status(verify: bool = Query(False)) -> dict:
+    """Return safe CDSE auth state; optionally perform a cached token exchange."""
+    client = get_cdse_client()
+    if verify:
+        try:
+            client.get_access_token()
+        except CDSEConfigurationError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except CDSEAuthenticationError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return client.status()
+
+
+@app.get("/api/cdse/acquisitions")
+def cdse_acquisitions(
+    longitude: float = Query(..., ge=-180, le=180),
+    latitude: float = Query(..., ge=-90, le=90),
+    days: int = Query(45, ge=1, le=365),
+    reference_datetime: str | None = Query(None),
+    before_days: int = Query(10, ge=0, le=90),
+    after_days: int = Query(15, ge=0, le=90),
+    limit: int = Query(20, ge=1, le=20),
+    radius_km: float = Query(5, ge=0.1, le=50),
+    max_cloud_cover: float = Query(100, ge=0, le=100),
+    source: str = Query("sentinel-2", pattern="^(sentinel-2|landsat-8-9|all)$"),
+) -> dict:
+    """Return recent Sentinel-2 and/or Landsat acquisitions around a FIRMS point."""
+    try:
+        return search_satellite_acquisitions(
+            longitude,
+            latitude,
+            days=days,
+            reference_datetime=reference_datetime,
+            before_days=before_days,
+            after_days=after_days,
+            limit=limit,
+            radius_km=radius_km,
+            max_cloud_cover=max_cloud_cover,
+            source=source,
+        )
+    except CDSEConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except (CDSEAuthenticationError, CDSERequestError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except CDSEImageryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/cdse/image")
+def cdse_image(
+    datetime_utc: str = Query(..., alias="datetime"),
+    bbox: str = Query(..., description="west,south,east,north in EPSG:4326"),
+    style: str = Query("true-color"),
+    width: int = Query(768, ge=128, le=1536),
+    height: int = Query(768, ge=128, le=1536),
+    source: str = Query("sentinel-2", pattern="^(sentinel-2|landsat-8-9)$"),
+) -> Response:
+    """Render a selected Sentinel-2 or Landsat acquisition as a cached PNG."""
+    try:
+        coordinates = [float(value.strip()) for value in bbox.split(",")]
+        image = render_satellite_image(
+            datetime_utc,
+            coordinates,
+            style=style,
+            width=width,
+            height=height,
+            source=source,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="bbox values must be numbers") from exc
+    except CDSEConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except (CDSEAuthenticationError, CDSERequestError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except CDSEImageryError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        content=image,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @app.get("/api/fires")

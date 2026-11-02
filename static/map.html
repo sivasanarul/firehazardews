@@ -313,15 +313,30 @@
                   <p id="period-subheading">Set the observation window.</p>
                 </div>
               </div>
+              <div class="detection-period-options" id="detection-period-options" hidden>
+                <span class="field-label">Quick periods</span>
+                <div class="period-presets" aria-label="Quick observation periods">
+                  <button type="button" data-period="1">Last 24h</button>
+                  <button type="button" data-period="2">Last 48h</button>
+                  <button type="button" data-period="7">Last 7 days</button>
+                  <button type="button" data-period="10">Last 10 days</button>
+                  <button type="button" data-period="30">Last 30 days</button>
+                  <button type="button" data-period="this-month">This month</button>
+                  <button type="button" data-period="previous-month">Previous month</button>
+                </div>
+                <div class="period-mode-actions" aria-label="Additional period choices">
+                  <button type="button" data-period-mode="month">Select month</button>
+                  <button type="button" data-period-mode="custom">Custom range</button>
+                </div>
+              </div>
               <div id="month-field" hidden>
-                <label for="month-select">Month</label
+                <label for="month-select">Select month</label
                 ><select id="month-select"></select>
                 <p class="field-note">
-                  Fire activity is shown for the selected month; the burned-area
-                  raster covers the previous month.
+                  Uses the complete calendar month, or through today for the current month.
                 </p>
               </div>
-              <div class="date-fields">
+              <div class="date-fields" id="custom-period-fields">
                 <div>
                   <label for="start">From</label
                   ><input id="start" type="date" value="2025-07-01" required />
@@ -337,8 +352,7 @@
                 ><button type="button" data-days="30">Last 30 days</button>
               </div>
               <p class="field-note" id="period-note">
-                The example period is 1–15 July 2025. Change it to explore
-                another period.
+                Selected period: 1–15 July 2025.
               </p>
             </section>
             <section
@@ -643,9 +657,106 @@
                 <dd><span id="period-days">—</span> <small>days</small></dd>
               </div>
             </dl>
+            <section class="frp-filter" id="frp-filter" hidden>
+              <label class="range-label" for="frp-threshold">
+                Minimum FRP intensity
+                <output id="frp-threshold-value">All intensities</output>
+              </label>
+              <input
+                id="frp-threshold"
+                type="range"
+                min="0"
+                max="1000"
+                step="1"
+                value="0"
+              />
+              <div class="frp-filter-scale" aria-hidden="true">
+                <span id="frp-low-label">Lowest</span>
+                <span id="frp-median-label">Median</span>
+                <span id="frp-high-label">Highest</span>
+              </div>
+              <p class="frp-scale-note">Logarithmic scale expands the lower FRP range.</p>
+              <p class="field-note" id="frp-filter-count"></p>
+            </section>
+            <section class="date-filter" id="date-filter" hidden>
+              <label class="range-label" for="date-threshold">
+                Observation date
+                <output id="date-threshold-value">All dates</output>
+              </label>
+              <input
+                id="date-threshold"
+                type="range"
+                min="0"
+                max="1000"
+                step="1"
+                value="0"
+              />
+              <div class="date-filter-scale" aria-hidden="true">
+                <span id="date-low-label">Earliest</span>
+                <span id="date-high-label">Latest</span>
+              </div>
+              <p class="frp-scale-note">Move right to hide earlier observation dates.</p>
+              <p class="field-note" id="date-filter-count"></p>
+            </section>
             <p id="results-description" class="field-note">
               Load a fire layer to explore detections in your selected area.
             </p>
+            <article class="satellite-result" id="satellite-result" hidden>
+              <div class="section-heading">
+                <div>
+                  <span class="eyebrow">SATELLITE IMAGERY</span>
+                  <h3>Recent satellite acquisitions</h3>
+                </div>
+                <button
+                  id="satellite-clear"
+                  class="satellite-clear"
+                  type="button"
+                  aria-label="Remove satellite image"
+                >Clear</button>
+              </div>
+              <p id="satellite-status" class="field-note" role="status">
+                Select a fire observation to search nearby acquisitions.
+              </p>
+              <div class="satellite-source" aria-label="Satellite source">
+                <button type="button" data-satellite-source="sentinel-2">
+                  Sentinel-2
+                </button>
+                <button type="button" data-satellite-source="landsat-8-9">
+                  Landsat 8/9
+                </button>
+              </div>
+              <div id="satellite-controls" hidden>
+                <div class="satellite-display" aria-label="Satellite display">
+                  <button type="button" data-satellite-style="true-color" class="active">
+                    True colour
+                  </button>
+                  <button type="button" data-satellite-style="swir">SWIR</button>
+                </div>
+                <label class="range-label satellite-coverage" for="satellite-radius">
+                  Image coverage
+                  <output id="satellite-radius-value">10 × 10 km</output>
+                </label>
+                <input
+                  id="satellite-radius"
+                  type="range"
+                  min="5"
+                  max="50"
+                  step="5"
+                  value="5"
+                />
+                <p class="frp-scale-note">Larger areas use the same 768 × 768 output and show less detail.</p>
+                <label class="range-label" for="satellite-opacity">
+                  Image opacity<output id="satellite-opacity-value">75%</output>
+                </label>
+                <input
+                  id="satellite-opacity"
+                  type="range"
+                  min="10"
+                  max="100"
+                  value="75"
+                />
+              </div>
+            </article>
             <article class="fwi-result" id="fwi-result" hidden>
               <div class="section-heading">
                 <h3>Fire Weather Index</h3>
@@ -724,6 +835,52 @@
     <main id="workspace" tabindex="-1">
       <div class="map-workspace">
         <div id="map" aria-label="Interactive fire monitoring map"></div>
+        <section
+          class="satellite-map-bar"
+          id="satellite-map-bar"
+          aria-label="Satellite acquisition timeline"
+          hidden
+        >
+          <div class="satellite-map-heading">
+            <div>
+              <span>SELECTED SATELLITE DATE</span>
+              <strong id="satellite-map-date">—</strong>
+            </div>
+            <div class="satellite-map-actions">
+              <button type="button" data-satellite-source="sentinel-2">
+                Sentinel-2
+              </button>
+              <button type="button" data-satellite-source="landsat-8-9">
+                Landsat 8/9
+              </button>
+              <button type="button" data-satellite-style="true-color" class="active">
+                True colour
+              </button>
+              <button type="button" data-satellite-style="swir">SWIR</button>
+              <button type="button" id="satellite-map-close" aria-label="Remove satellite imagery">
+                Close
+              </button>
+            </div>
+          </div>
+          <div class="satellite-window-labels">
+            <span>−10 days</span>
+            <span id="satellite-reference-label">FIRMS observation</span>
+            <span>+15 days</span>
+          </div>
+          <div class="satellite-map-timeline-wrap">
+            <div
+              id="satellite-timeline"
+              class="satellite-map-timeline"
+              aria-label="Dates with available satellite RGB imagery"
+            ></div>
+          </div>
+          <div class="satellite-map-key">
+            <span><i class="sentinel"></i>Sentinel-2 RGB</span>
+            <span><i class="landsat"></i>Landsat 8/9 RGB</span>
+            <span><i class="detected"></i>FIRMS observation date</span>
+            <span><i></i>No acquisition</span>
+          </div>
+        </section>
         <div class="map-navigation-tools">
           <button
             id="fit-area"

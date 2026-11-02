@@ -52,7 +52,7 @@ window.SLIM_SCENARIOS = [
       ["Ground sensors", "Complement satellite observations", "Concept"],
     ],
     defaults: ["show-districts", "show-burn"],
-    note: "Detect fires in a single 2026 month and overlay the burned-area mask of the previous month. Add environmental context as needed; ground sensors are a future feature.",
+    note: "Detect fires using a recent, monthly, or custom period and overlay the burned-area mask preceding the selected period. Add environmental context as needed; ground sensors are a future feature.",
   },
   {
     id: "prediction",

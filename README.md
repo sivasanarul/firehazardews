@@ -127,9 +127,23 @@ in scenario 2. Hazard is available in scenario 1; districts and environmental
 context layers are shared across scenarios.
 
 FIRMS detection points use proportional symbols: point area scales with FRP in
-MW (with minimum and maximum display sizes), while colour shows observation age
-in four UTC-relative classes: up to 6 hours, 6–24 hours, 1–3 days, and older.
-Popups retain the exact FRP and observation timestamp.
+MW (with minimum and maximum display sizes), while colour uses a Turbo gradient
+to show observation date within the selected period. Detection provides quick
+UTC date windows for the last 24 hours, 48 hours, 7, 10, or 30 days, plus this
+month, the previous month, a 2026 month picker, and a custom range. The current
+month ends today and future dates are disabled. The legend derives up to six
+date intervals from the active range, with cooler colours for earlier
+observations and warmer colours for later observations.
+Popups retain the exact FRP and observation timestamp. After individual
+detections load, the Results panel provides a logarithmic minimum-FRP slider
+spanning the lowest through highest observed MW value, with the median shown
+for context. The logarithmic mapping gives the common low-intensity detections
+useful slider space even when a few extreme FRP values are present. It filters
+map points, the result list, counts, and legend immediately without another FIRMS request. Event
+polygons are not affected, and GeoJSON export retains the complete originally
+loaded collection. A second minimum-date slider filters the same loaded points
+from the earliest through latest observation date. FRP and date thresholds are
+combined, so adjusting one retains the other.
 
 FIRMS requests can be restricted to a polygon or multipolygon stored in a
 GeoPackage. Configure `.env` with:
@@ -145,6 +159,59 @@ backend intersects the requested extent with the boundary bounds before calling
 FIRMS, then removes detections outside the actual geometry. Missing or invalid
 boundary configuration fails the request instead of returning unfiltered data.
 Set `FIRMS_BOUNDARY_ENABLED=false` to retain the default rectangular region.
+
+### Copernicus Data Space authentication
+
+CDSE access uses a backend-only OAuth2 client-credentials flow. Create an OAuth
+client in the Sentinel Hub dashboard and configure `.env`:
+
+```dotenv
+CDSE_CLIENT_ID=your-client-id
+CDSE_CLIENT_SECRET=your-client-secret
+CDSE_TOKEN_URL=https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token
+CDSE_API_URL=https://sh.dataspace.copernicus.eu
+CDSE_HTTP_TIMEOUT=30
+CDSE_TOKEN_REFRESH_MARGIN=300
+CDSE_PROCESS_TIMEOUT=90
+CDSE_IMAGE_CACHE_DIR=.cache/cdse
+```
+
+The server reuses access tokens, refreshes them five minutes before expiry,
+serializes concurrent refreshes, and retries an API request once after HTTP 401.
+Credentials and tokens are never returned by the status endpoint. Test a real
+credential pair without printing the token:
+
+```bash
+/home/eouser/miniconda3/envs/slimfire/bin/python -m cdse_client
+```
+
+`GET /api/cdse/auth-status` reports only whether credentials are configured,
+whether this process currently holds a fresh token, the safe API base URL, and
+the token expiry time. `GET /api/cdse/auth-status?verify=true` performs a live,
+cached token exchange and still returns no credentials or token. Restart
+Uvicorn after changing credentials.
+
+In Detection, selecting an individual FIRMS point searches satellite
+acquisitions within 5 km, from 10 days before through 15 days after that FIRMS
+observation. The viewer searches Sentinel-2 L2A and Landsat 8/9 Collection 2
+Level-1 together. A bottom map timeline marks every date with available RGB
+imagery using separate S2, L8, and L9 markers; more than one mission can appear
+on the same date. Selecting a marker renders that collection and highlights its
+Sentinel-2 or Landsat source control. The source controls are shortcuts to the
+closest available acquisition from that mission. The closest acquisition
+overall is selected initially. The results panel provides platform and scene-cloud metadata,
+True-colour/SWIR controls, and image opacity. Sentinel-2 SWIR uses B12/B11/B04;
+Landsat OLI SWIR uses B07/B06/B04. The default image uses a 5 km radius
+(approximately 10 × 10 km) and a Results-panel coverage slider can expand it
+to a 50 km radius (approximately 100 × 100 km) without changing the selected
+acquisition or display style. Every extent is rendered at 768 × 768 pixels, so
+larger areas trade spatial detail for coverage. Images are rendered on demand
+by the CDSE Process API beneath the FIRMS points and cached as PNGs; a
+full Landsat scene is not downloaded. The backend routes are
+`GET /api/cdse/acquisitions` and `GET /api/cdse/image`; OAuth credentials remain
+server-side for both routes. Their optional `source` query parameter accepts
+`sentinel-2` (the default), `landsat-8-9`, or `all` for acquisition searches;
+image requests accept one concrete collection.
 
 Both pages load `static/design.css` for shared colours, typography, scenario accents,
 and responsive refinements. `static/floating-map.css` adds the floating layout and
@@ -206,11 +273,10 @@ visual layout and real tile review.
 
 - `burnscar/<year>/SLIM_BURN_MASK_<start>_<end>_WGS84_cog.tif`: monthly and
   full-year SLIM burned-area masks (value `1` = burned). In detection the layer
-  is on by default and shows the burned-area mask of the
-  **previous** month relative to the selected 2026 month; in restoration it is
-  fixed to the 2025 yearly composite with no period selector. Detection selects
-  a single 2026 month (January up to the current month) which
-  drives the FIRMS fire query. Rendered as a single ember tone with opacity
+  is on by default and shows the burned-area mask for the month preceding the
+  selected period end; in restoration it is fixed to the 2025 yearly composite
+  with no period selector. Detection offers recent UTC windows, a 2026 month
+  picker, and a custom range which drive the FIRMS fire query. Rendered as a single ember tone with opacity
   control. Cached in `.cache/burnscars` (override with `BURN_CACHE_DIR`).
 
 Routes: `/api/hazard/style`, `/api/hazard/tiles/{z}/{x}/{y}.png`,
