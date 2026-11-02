@@ -70,6 +70,9 @@
 .landing .cycle[data-active="response"] .orbit {
   border-color: #d9aa86;
 }
+.landing .cycle[data-active="prediction"] .orbit {
+  border-color: #d5b85f;
+}
 .landing .cycle[data-active="restoration"] .orbit {
   border-color: #9ecdd8;
 }
@@ -81,6 +84,9 @@
 }
 .landing .cycle[data-active]:not([data-active=""]) .orbit-three {
   transform: rotate(46deg);
+}
+.landing .cycle[data-active]:not([data-active=""]) .orbit-four {
+  transform: rotate(88deg);
 }
 .landing .scenario-card {
   transition:
@@ -124,6 +130,9 @@
 .landing .orbit-three {
   animation: reveal-orbit 0.9s 0.2s ease both;
 }
+.landing .orbit-four {
+  animation: reveal-orbit 1s 0.3s ease both;
+}
 .landing .scenario-card {
   animation: reveal-content 0.4s 0.12s ease backwards;
 }
@@ -132,6 +141,9 @@
 }
 .landing .scenario-card:nth-child(3) {
   animation-delay: 0.28s;
+}
+.landing .scenario-card:nth-child(4) {
+  animation-delay: 0.36s;
 }
 
 .workspace-state {

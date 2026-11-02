@@ -112,18 +112,39 @@ visual browser review.
 
 ## Scenario landing page
 
-The root URL (`/`) introduces three workflows from the EWS brief. Each opens the
+The root URL (`/`) introduces four workflows from the EWS brief. Each opens the
 existing map design with scenario-specific guidance and layer defaults:
 
 - `/map?scenario=prevention`: Prevention & preparedness; 2025 hazard index and districts.
-- `/map?scenario=response`: Detection & response; FIRMS detections and districts, preserving the original workflow.
+- `/map?scenario=response`: Detection; FIRMS detections and districts, preserving the original workflow.
+- `/map?scenario=prediction`: Prediction; burned area and landscape context, with propagation and risk prediction clearly marked as planned.
 - `/map?scenario=restoration`: Restoration & adaptation; burned area, land cover and districts.
 
-`/map` and unknown scenario values default to detection and response. The header's
+`/map` and unknown scenario values default to detection. The header's
 **All scenarios** link returns to the landing page. No observation data loads until
 **Explore map** is selected. FIRMS detections and event polygons are available only
 in scenario 2. Hazard is available in scenario 1; districts and environmental
 context layers are shared across scenarios.
+
+FIRMS detection points use proportional symbols: point area scales with FRP in
+MW (with minimum and maximum display sizes), while colour shows observation age
+in four UTC-relative classes: up to 6 hours, 6–24 hours, 1–3 days, and older.
+Popups retain the exact FRP and observation timestamp.
+
+FIRMS requests can be restricted to a polygon or multipolygon stored in a
+GeoPackage. Configure `.env` with:
+
+```dotenv
+FIRMS_BOUNDARY_ENABLED=true
+FIRMS_BOUNDARY_GPKG=greennexus_ews.gpkg
+FIRMS_BOUNDARY_LAYER=landscape_slim_updated
+```
+
+Relative paths are resolved from the application directory. When enabled, the
+backend intersects the requested extent with the boundary bounds before calling
+FIRMS, then removes detections outside the actual geometry. Missing or invalid
+boundary configuration fails the request instead of returning unfiltered data.
+Set `FIRMS_BOUNDARY_ENABLED=false` to retain the default rectangular region.
 
 Both pages load `static/design.css` for shared colours, typography, scenario accents,
 and responsive refinements. `static/floating-map.css` adds the floating layout and
@@ -144,8 +165,9 @@ uncertainty about its scope.
 ### Environmental context and future scope
 
 Environmental context follows the scenario brief: prevention provides land
-cover; detection and response provides land cover, burned area, vegetation fuel,
-and precipitation; restoration provides burned area and land cover. District
+cover; detection provides numerical FWI, land cover, burned area, vegetation
+fuel, and precipitation; prediction provides burned area and environmental context;
+restoration provides burned area and land cover. District
 boundaries remain the common reporting reference. Ward-level units, controls,
 endpoints, and summaries are intentionally out of scope at this stage.
 
@@ -183,11 +205,11 @@ visual layout and real tile review.
   (override with `RECOVERY_CACHE_DIR`).
 
 - `burnscar/<year>/SLIM_BURN_MASK_<start>_<end>_WGS84_cog.tif`: monthly and
-  full-year SLIM burned-area masks (value `1` = burned). In detection &
-  response the layer is on by default and shows the burned-area mask of the
+  full-year SLIM burned-area masks (value `1` = burned). In detection the layer
+  is on by default and shows the burned-area mask of the
   **previous** month relative to the selected 2026 month; in restoration it is
-  fixed to the 2025 yearly composite with no period selector. Detection &
-  response selects a single 2026 month (January up to the current month) which
+  fixed to the 2025 yearly composite with no period selector. Detection selects
+  a single 2026 month (January up to the current month) which
   drives the FIRMS fire query. Rendered as a single ember tone with opacity
   control. Cached in `.cache/burnscars` (override with `BURN_CACHE_DIR`).
 
@@ -200,3 +222,38 @@ URL. Fire propagation and risk assessment remain planned.
 
 Run offline GIS/API checks with
 `python -m unittest discover -s tests -p test_landscape.py`.
+
+### Numerical Fire Weather Index
+
+Detection displays FWI across the selected WGS84 extent and reports
+a dimensionless numerical value at its centre. `/api/fire-weather-index` routes
+today and the previous six UTC calendar days to the GWIS `ecmwf.query` WMS
+`GetFeatureInfo` endpoint for that centre value. The area layer uses the
+official provider-rendered `ecmwf.fwi` WMS; its colours are not converted back
+into numerical values. The backend requests and caches one aspect-preserving WMS
+image for the complete selected extent, avoiding a burst of independent upstream
+tile requests when the user zooms. Older dates use the numerical
+`cems-fire-historical-v1` EWDS grid. Future dates return an explicit
+`unavailable` result and are not sent to either historical source.
+
+EWDS uses the current catalogue form fields (`reanalysis`,
+`fire_weather_index`, system `4_1`, 0.25° grid and NetCDF). The client consults
+the published constraints to prefer consolidated ERA5 and uses intermediate
+ERA5T only when that is the listed product for the date. Downloads run in a
+bounded background queue, are cached under `.cache/fire_weather`, and initially
+return `pending`. The request covers the selected extent. After download, the
+client inspects the NetCDF variable, coordinates, fill values and longitude
+convention, renders the numerical grid over that extent, and samples the nearest
+grid cell to the centre for the reported value. The UI labels extent cell
+minimum, mean and maximum as grid statistics rather than a polygon average.
+Results and GeoJSON exports retain the provider source and sampling label.
+
+EWDS credentials stay on the backend. Accept the dataset's CC-BY terms and
+configure either:
+
+- `EWDS_API_KEY` (with optional `EWDS_API_URL`, defaulting to
+  `https://ewds.climate.copernicus.eu/api`), or
+- the service account's `.cdsapirc` exactly as generated by EWDS.
+
+`FWI_CACHE_DIR` overrides the cache location. Run focused checks with
+`python -m unittest tests.test_fire_weather`.

@@ -13,7 +13,7 @@
   // The header keeps only the scenario switcher; the descriptive copy lives on
   // the landing page, so it is not repeated in the compact workspace header.
   context.innerHTML = `<nav class="scenario-navigation" aria-label="Scenario workspaces">${window.SLIM_SCENARIOS.map((item) => `<a class="scenario-tab" href="/map?scenario=${item.id}" title="${item.title} · ${item.phase}" aria-label="${item.title}"${item.id === scenario.id ? ' aria-current="page"' : ""}><svg class="scenario-tab-icon" aria-hidden="true"><use href="#i-${item.icon}"></use></svg><span class="scenario-tab-label">${item.short}</span></a>`).join("")}</nav>`;
-  // Left/Right (and Home/End) move focus across the three scenario options.
+  // Left/Right (and Home/End) move focus across the scenario options.
   const scenarioTabs = [...context.querySelectorAll(".scenario-tab")];
   context
     .querySelector(".scenario-navigation")
@@ -36,25 +36,25 @@
   document.getElementById("explore-panel").append(roadmap);
   document.getElementById("fire-display").value = "fires";
   document.getElementById("show-fire").checked = scenario.id === "response";
+  document.getElementById("fwi-card").hidden = scenario.id !== "response";
   for (const id of scenario.defaults)
     document.getElementById(id).checked = true;
   document.getElementById("hazard-card").hidden = scenario.id !== "prevention";
   // SLIM recovery status is the primary (top) layer in restoration.
   const recoveryCard = document.getElementById("recovery-card");
   recoveryCard.hidden = scenario.id !== "restoration";
-  // SLIM burned area: not part of prevention. Detection & response and
-  // restoration both group it with the optional environmental context rather
-  // than the primary layers.
+  // SLIM burned area is available after prevention and is grouped with the
+  // optional environmental context outside the restoration primary layer.
   const contextSettings = document.querySelector(".context-settings");
   const burnCard = document.getElementById("burn-card");
-  // The brief limits vegetation fuel and precipitation to the response
-  // workflow. Land cover remains available in every scenario.
+  // Vegetation fuel and precipitation support detection and prediction.
+  // Land cover remains available in every scenario.
   for (const id of ["show-fuel", "show-precip-heatmap"]) {
     const input = document.getElementById(id);
     const card = input?.closest(".layer-card");
     if (!input || !card) continue;
     input.checked = false;
-    card.hidden = scenario.id !== "response";
+    card.hidden = !["response", "prediction"].includes(scenario.id);
   }
   if (scenario.id === "prevention") {
     burnCard.hidden = true;
@@ -96,7 +96,7 @@
     document.getElementById("dates-step").append(referenceNote);
   }
   if (scenario.id === "response") {
-    // Detection & response reviews a single 2026 month: swap the date range for
+    // Detection reviews a single 2026 month: swap the date range for
     // a month picker and fix the burned-area layer to the previous month.
     const monthField = document.getElementById("month-field");
     if (monthField) monthField.hidden = false;
@@ -132,11 +132,15 @@
   if (scenario.id !== "response") {
     document.getElementById("fire-card").hidden = true;
     document.getElementById("fire-display").disabled = true;
+    document.getElementById("show-fwi").disabled = true;
+    document.getElementById("fwi-date").disabled = true;
     document.querySelector(".context-settings > .field-note").textContent =
       "Add landscape and rainfall layers for context.";
     document.getElementById("loaded-period").textContent =
       scenario.id === "prevention"
         ? "Choose an area to explore the landscape."
-        : "Choose an area to explore the 2025 recovery.";
+        : scenario.id === "restoration"
+          ? "Choose an area to explore the 2025 recovery."
+          : "Choose an area and period to explore prediction context.";
   }
 })();

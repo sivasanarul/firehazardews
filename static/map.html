@@ -37,6 +37,12 @@
           />
           <circle cx="12" cy="12" r="6.5" />
         </symbol>
+        <symbol id="i-forecast" viewBox="0 0 24 24">
+          <path
+            d="M4 17.5A4.5 4.5 0 0 1 6.5 9a6 6 0 0 1 11.4 2A3.5 3.5 0 1 1 18 18H6"
+          />
+          <path d="m9 21 2-3 2 3 2-3" />
+        </symbol>
         <symbol id="i-map" viewBox="0 0 24 24">
           <path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2Zm6-2v16m6-14v16" />
         </symbol>
@@ -478,6 +484,38 @@
                   </p>
                 </div>
               </div>
+              <div class="layer-card" id="fwi-card" hidden>
+                <label class="layer-heading toggle-label" for="show-fwi"
+                  ><input
+                    id="show-fwi"
+                    type="checkbox"
+                    aria-controls="fwi-settings"
+                    aria-expanded="false"
+                  /><span>Fire Weather Index (FWI)</span></label
+                >
+                <p class="field-note">
+                  FWI across the selected area, with its centre value reported
+                  numerically.
+                </p>
+                <div class="layer-settings" id="fwi-settings" hidden>
+                  <label for="fwi-date">FWI date</label
+                  ><input id="fwi-date" type="date" />
+                  <label class="range-label" for="fwi-opacity"
+                    >Opacity<output id="fwi-opacity-value">70%</output></label
+                  ><input
+                    id="fwi-opacity"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="70"
+                  />
+                  <p class="field-note">
+                    Recent dates show the official GWIS WMS and query its centre
+                    numerically. Earlier dates show the downloaded EWDS
+                    numerical grid and may remain pending while queued.
+                  </p>
+                </div>
+              </div>
               <div class="layer-card">
                 <label class="layer-heading toggle-label" for="show-districts"
                   ><input id="show-districts" type="checkbox" /><span
@@ -608,6 +646,28 @@
             <p id="results-description" class="field-note">
               Load a fire layer to explore detections in your selected area.
             </p>
+            <article class="fwi-result" id="fwi-result" hidden>
+              <div class="section-heading">
+                <h3>Fire Weather Index</h3>
+                <span class="status-pill" id="fwi-status">Unavailable</span>
+              </div>
+              <dl>
+                <div><dt>FWI</dt><dd id="fwi-value">—</dd></div>
+                <div><dt>Date</dt><dd id="fwi-result-date">—</dd></div>
+                <div><dt>Requested location</dt><dd id="fwi-location">—</dd></div>
+                <div id="fwi-sampled-row" hidden>
+                  <dt>Sampled grid cell</dt><dd id="fwi-sampled-location">—</dd>
+                </div>
+                <div><dt>Source</dt><dd id="fwi-source">—</dd></div>
+                <div><dt>Sampling</dt><dd id="fwi-sampling">—</dd></div>
+                <div><dt>Area layer</dt><dd id="fwi-coverage">—</dd></div>
+                <div id="fwi-statistics-row" hidden>
+                  <dt>Area cells</dt><dd id="fwi-statistics">—</dd>
+                </div>
+                <div><dt>Retrieved</dt><dd id="fwi-retrieved">—</dd></div>
+              </dl>
+              <p class="field-note" id="fwi-message"></p>
+            </article>
             <div id="results-list">
               <div class="results-empty">
                 <h3>No observations loaded</h3>
@@ -710,6 +770,14 @@
           Buffered groups of nearby detections, not measured fire perimeters.
           Fire radiative power is shown in megawatts (MW).
         </dd>
+        <dt>Fire Weather Index (FWI)</dt>
+        <dd>
+          Dimensionless centre-point value plus an extent-wide layer. Today and
+          the previous six UTC calendar days use the provider-rendered GWIS WMS;
+          its colours are not used to calculate the centre value. Earlier dates
+          display the Copernicus EWDS numerical grid and use nearest-grid-cell
+          sampling for the reported centre value. This is not a polygon average.
+        </dd>
         <dt>Hazard index · 2025</dt>
         <dd>
           SLIM continuous raster for preparedness, on a fixed scale from 0
@@ -732,7 +800,7 @@
         <dt>Burned area</dt>
         <dd>
           A satellite burn-scar mask published monthly (2025–2026) plus a
-          full-year 2025 composite. Detection & response shows a chosen 2026
+          full-year 2025 composite. Detection shows a chosen 2026
           month of fire activity together with the burned-area mask of the
           <em>previous</em> month. Restoration always uses the fixed 2025 yearly
           composite. Cells are a binary burned/not-burned classification, not a

@@ -29,6 +29,7 @@
           <div class="orbit orbit-one" aria-hidden="true"></div>
           <div class="orbit orbit-two" aria-hidden="true"></div>
           <div class="orbit orbit-three" aria-hidden="true"></div>
+          <div class="orbit orbit-four" aria-hidden="true"></div>
           <span class="cycle-center" aria-hidden="true"
             ><span id="cycle-kicker">Fire</span><br /><span id="cycle-word"
               >resilience</span
@@ -41,20 +42,26 @@
             aria-label="Explore Prevention & preparedness"
             >01 / Prepare</a
           ><a
-            class="cycle-label during"
+            class="cycle-label detection"
             data-scenario="response"
             href="/map?scenario=response"
-            aria-label="Explore Detection & response"
-            >02 / Respond</a
+            aria-label="Explore Detection"
+            >02 / Detect</a
+          ><a
+            class="cycle-label forecast"
+            data-scenario="prediction"
+            href="/map?scenario=prediction"
+            aria-label="Explore Prediction"
+            >03 / Predict</a
           ><a
             class="cycle-label after"
             data-scenario="restoration"
             href="/map?scenario=restoration"
             aria-label="Explore Restoration & adaptation"
-            >03 / Restore</a
+            >04 / Restore</a
           >
           <span class="cycle-hint" aria-hidden="true"
-            >Three stages. One connected landscape.</span
+            >Four stages. One connected landscape.</span
           >
         </nav>
       </section>
@@ -86,7 +93,8 @@
         ><p>
           Choose a workspace:
           <a href="/map?scenario=prevention">Prevention & preparedness</a> ·
-          <a href="/map?scenario=response">Detection & response</a> ·
+          <a href="/map?scenario=response">Detection</a> ·
+          <a href="/map?scenario=prediction">Prediction</a> ·
           <a href="/map?scenario=restoration">Restoration & adaptation</a>.
           JavaScript is required for the interactive map.
         </p></noscript

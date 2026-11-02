@@ -3,6 +3,7 @@
     target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4m0 14v4M1 12h4m14 0h4"/>',
     fire: '<path d="M13 3c1 5-5 6-3 10 1-2 3-3 4-4 0 3 5 4 5 8a7 7 0 0 1-14 0C5 11 12 10 13 3Z"/>',
     beacon: '<circle cx="12" cy="12" r="2.5"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5.2 5.2l2.1 2.1m9.4 9.4 2.1 2.1m0-13.6-2.1 2.1m-9.4 9.4-2.1 2.1"/><circle cx="12" cy="12" r="6.5"/>',
+    forecast: '<path d="M4 17.5A4.5 4.5 0 0 1 6.5 9a6 6 0 0 1 11.4 2A3.5 3.5 0 1 1 18 18H6"/><path d="m9 21 2-3 2 3 2-3"/>',
     leaf: '<path d="M20 3C8 2 1 8 5 16s17 3 15-13ZM3 22 16 9"/>'
   };
   for (const scenario of window.SLIM_SCENARIOS) {
@@ -14,7 +15,7 @@
   }
   const cycle = document.querySelector('.cycle');
   const items = [...document.querySelectorAll('.scenario-card, .cycle-label')];
-  const phaseNames = {prevention: ['Before the fire', 'Prepare'], response: ['During the fire', 'Respond'], restoration: ['After the fire', 'Restore']};
+  const phaseNames = {prevention: ['Before the fire', 'Prepare'], response: ['During the fire', 'Detect'], prediction: ['Ahead of spread', 'Predict'], restoration: ['After the fire', 'Restore']};
   let pointerScenario = null;
   let focusScenario = null;
   function updatePreview() {

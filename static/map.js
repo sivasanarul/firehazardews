@@ -20,6 +20,7 @@
   let burnStyle = null;
   let burnPeriod = null;
   let recoveryStyle = null;
+  let fwiResult = null;
   let setupStep = 0;
   let unlockedStep = 0;
   let currentPanel = "explore";
@@ -102,6 +103,7 @@
     $("header-dates").parentElement.hidden = skipsDates;
     const selected = [
       "show-fire",
+      "show-fwi",
       "show-hazard",
       "show-burn",
       "show-recovery",
@@ -543,7 +545,7 @@
   new ResizeObserver(() => map.invalidateSize()).observe($("map"));
   function dirty() {
     if (busy) return;
-    settingsDirty = Boolean(loaded || overlays.size);
+    settingsDirty = Boolean(loaded || fwiResult || overlays.size);
     setStatus(
       fullControls
         ? "Settings changed. Update the map to apply."
@@ -634,7 +636,7 @@
         preset.classList.remove("active");
       refreshHeaderContext();
     });
-  // Detection & response inspects a single 2026 month. Choosing a month writes
+  // Detection inspects a single 2026 month. Choosing a month writes
   // the equivalent start/end range so every downstream layer keeps working.
   const monthMode = scenario?.id === "response";
   const MONTH_NAMES = [
@@ -681,6 +683,10 @@
     const { start, end } = monthBounds(period);
     $("start").value = start;
     $("end").value = end;
+    if ($("fwi-date")) {
+      const today = new Date().toISOString().slice(0, 10);
+      $("fwi-date").value = today.startsWith(period) ? today : end;
+    }
     refreshHeaderContext();
   }
   function populateMonthSelect() {
@@ -707,6 +713,7 @@
   }
   const toggles = [
     "show-fire",
+    "show-fwi",
     "show-hazard",
     "show-burn",
     "show-recovery",
@@ -721,6 +728,10 @@
     const fire = supportsFire && $("show-fire").checked;
     $("fire-display").disabled = !fire || busy;
     $("sensor").disabled = !fire || busy;
+    $("show-fwi").disabled = !supportsFire || busy;
+    $("fwi-date").disabled =
+      !supportsFire || !$("show-fwi").checked || busy;
+    $("fwi-date").required = supportsFire && $("show-fwi").checked;
     $("event-note").hidden = $("fire-display").value !== "events";
     for (const id of toggles) {
       const input = $(id);
@@ -741,6 +752,7 @@
     $(id).addEventListener("change", selectionChanged);
   selectionChanged();
   for (const [id, key] of [
+    ["fwi-opacity", "fwi"],
     ["hazard-opacity", "hazard"],
     ["burn-opacity", "burn"],
     ["recovery-opacity", "recovery"],
@@ -765,12 +777,17 @@
     try {
       const response = await fetch(url, { signal: controller.signal });
       const data = await response.json();
-      if (!response.ok)
-        throw new Error(
+      if (!response.ok) {
+        const requestError = new Error(
           typeof data.detail === "string"
             ? data.detail
-            : `Request failed (HTTP ${response.status}). Check your area and dates.`,
+            : typeof data.message === "string"
+              ? data.message
+              : `Request failed (HTTP ${response.status}). Check your area and dates.`,
         );
+        requestError.data = data;
+        throw requestError;
+      }
       return data;
     } catch (error) {
       if (error.name === "AbortError")
@@ -812,6 +829,7 @@
   // Raster layers are stacked so the map follows the on-screen order in the
   // layers step: the first listed layer sits on top of the ones below it.
   const TILE_KEYS = {
+    "show-fwi": "fwi",
     "show-hazard": "hazard",
     "show-recovery": "recovery",
     "show-burn": "burn",
@@ -886,6 +904,44 @@
     frp: "FRP (MW)",
     firms_source: "Source",
   };
+  const FIRE_RECENCY_COLORS = [
+    { hours: 6, color: "#d7301f", label: "Observed in the last 6 hours" },
+    { hours: 24, color: "#fc8d59", label: "Observed 6–24 hours ago" },
+    { hours: 72, color: "#fdcc8a", label: "Observed 1–3 days ago" },
+    { hours: Infinity, color: "#9ca3af", label: "Observed more than 3 days ago" },
+  ];
+  function firePointRadius(properties = {}) {
+    const value = Number(properties.frp ?? properties.max_frp);
+    if (!Number.isFinite(value) || value <= 0) return 4;
+    // Radius grows with sqrt(FRP), making the visible symbol area proportional
+    // to radiant power while clamps keep extreme readings usable on the map.
+    return Math.min(18, Math.max(4, 1.2 * Math.sqrt(value)));
+  }
+  function observationTime(properties = {}) {
+    const value =
+      properties.acq_datetime_utc ||
+      properties.end_time ||
+      properties.start_time ||
+      properties.interval_end;
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+  function fireRecencyColor(properties = {}) {
+    const timestamp = observationTime(properties);
+    if (timestamp === null) return "#6b7280";
+    const ageHours = Math.max(0, (Date.now() - timestamp) / 3_600_000);
+    return FIRE_RECENCY_COLORS.find((item) => ageHours <= item.hours).color;
+  }
+  function firePointStyle(feature) {
+    const properties = feature?.properties || {};
+    return {
+      radius: firePointRadius(properties),
+      color: "#5f4b3f",
+      weight: 1,
+      fillColor: fireRecencyColor(properties),
+      fillOpacity: 0.9,
+    };
+  }
   function popup(feature, layer) {
     const isObservation = feature.geometry.type === "Point";
     const panel = document.createElement("div");
@@ -981,6 +1037,55 @@
       $("results-list").append(button);
     });
   }
+  function renderFwi(result) {
+    fwiResult = result;
+    $("fwi-result").hidden = false;
+    $("fwi-status").textContent =
+      result.status.charAt(0).toUpperCase() + result.status.slice(1);
+    $("fwi-status").dataset.status = result.status;
+    setText(
+      "fwi-value",
+      result.fwi == null ? "—" : `${number(result.fwi)} (dimensionless)`,
+    );
+    setText("fwi-result-date", dateLabel(result.date));
+    setText(
+      "fwi-location",
+      result.location
+        ? `${Number(result.location.latitude).toFixed(4)}, ${Number(result.location.longitude).toFixed(4)}`
+        : "—",
+    );
+    $("fwi-sampled-row").hidden = !result.sampled_location;
+    setText(
+      "fwi-sampled-location",
+      result.sampled_location
+        ? `${Number(result.sampled_location.latitude).toFixed(4)}, ${Number(result.sampled_location.longitude).toFixed(4)}`
+        : "—",
+    );
+    setText("fwi-source", result.source || "—");
+    setText("fwi-sampling", result.sampling || "point query");
+    setText("fwi-coverage", result.coverage || "No area layer available");
+    $("fwi-statistics-row").hidden = !result.statistics;
+    setText(
+      "fwi-statistics",
+      result.statistics
+        ? `${number(result.statistics.cell_count)} cells · min ${number(result.statistics.min)} · mean ${number(result.statistics.mean)} · max ${number(result.statistics.max)}`
+        : "—",
+    );
+    setText(
+      "fwi-retrieved",
+      result.retrieval_time
+        ? new Date(result.retrieval_time).toLocaleString()
+        : "—",
+    );
+    setText("fwi-message", result.message || "");
+    if (!loaded)
+      setText(
+        "results-description",
+        "FWI area layer with a numerical value reported at its centre.",
+      );
+    $("export").disabled = false;
+    $("export").hidden = false;
+  }
   function renderLegend() {
     $("map-legend").hidden = overlays.size === 0;
     const container = $("legend-content");
@@ -996,11 +1101,50 @@
       line.append(swatch, text);
       container.append(line);
     }
-    if (overlays.has("fire"))
-      row(
-        "#e58149",
-        loaded?.mode === "events" ? "Fire event polygons" : "Fire detections",
-      );
+    if (overlays.has("fire")) {
+      if (loaded?.mode === "events") {
+        row("#e58149", "Fire event polygons");
+      } else {
+        const title = document.createElement("p");
+        title.textContent = "FIRMS detections · size by FRP";
+        const sizeScale = document.createElement("div");
+        sizeScale.className = "legend-size-scale";
+        for (const value of [10, 50, 100]) {
+          const item = document.createElement("span");
+          item.className = "legend-size-item";
+          const dot = document.createElement("i");
+          dot.className = "legend-size-dot";
+          const diameter = firePointRadius({ frp: value }) * 2;
+          dot.style.width = `${diameter}px`;
+          dot.style.height = `${diameter}px`;
+          const label = document.createElement("small");
+          label.textContent = `${value} MW`;
+          item.append(dot, label);
+          sizeScale.append(item);
+        }
+        const note = document.createElement("p");
+        note.className = "legend-note";
+        note.textContent = "Point area scales with FRP; colour shows age.";
+        container.append(title, sizeScale, note);
+        for (const item of FIRE_RECENCY_COLORS) row(item.color, item.label);
+      }
+    }
+    if (overlays.has("fwi") && fwiResult) {
+      const title = document.createElement("p");
+      title.textContent = `FWI area layer · centre ${number(fwiResult.fwi)}`;
+      container.append(title);
+      if (fwiResult.statistics) {
+        const gradient = document.createElement("div");
+        gradient.className = "legend-gradient fwi-gradient";
+        const labels = document.createElement("p");
+        labels.textContent = `${number(fwiResult.statistics.min)} · Lower → ${number(fwiResult.statistics.max)} · Higher`;
+        container.append(gradient, labels);
+      } else {
+        const note = document.createElement("p");
+        note.textContent = "Provider-rendered GWIS WMS · colours are not sampled values";
+        container.append(note);
+      }
+    }
     if (overlays.has("districts"))
       row("#425951", "District boundaries · hover for name");
     if (overlays.has("hazard") && hazardStyle) {
@@ -1055,6 +1199,7 @@
   }
   function resetResults() {
     loaded = null;
+    fwiResult = null;
     $("export").disabled = true;
     $("export").hidden = true;
     setText("detection-count", "—");
@@ -1064,6 +1209,10 @@
       "results-description",
       "No fire observations loaded for this selection.",
     );
+    $("fwi-result").hidden = true;
+    $("fwi-sampled-row").hidden = true;
+    $("fwi-statistics-row").hidden = true;
+    $("fwi-status").removeAttribute("data-status");
     $("results-list").replaceChildren();
   }
   form.addEventListener("submit", async (event) => {
@@ -1162,14 +1311,8 @@
               fillColor: "#ec965e",
               fillOpacity: 0.28,
             },
-            pointToLayer: (_feature, latlng) =>
-              L.circleMarker(latlng, {
-                radius: 4,
-                color: "#a55730",
-                weight: 0.8,
-                fillColor: "#ed9453",
-                fillOpacity: 0.85,
-              }),
+            pointToLayer: (feature, latlng) =>
+              L.circleMarker(latlng, firePointStyle(feature)),
             onEachFeature: popup,
           }).addTo(map);
           overlays.set("fire", layer);
@@ -1184,6 +1327,86 @@
             "fire",
             `${number(data.features.length)} ${mode === "events" ? "event polygons" : "fire detections"}`,
           );
+        });
+      if ($("show-fwi").checked)
+        task("fwi", "Fire Weather Index", async () => {
+          const latitude = (bounds[0][0] + bounds[1][0]) / 2;
+          const longitude = (bounds[0][1] + bounds[1][1]) / 2;
+          const url =
+            "/api/fire-weather-index?" +
+            new URLSearchParams({
+              date: $("fwi-date").value,
+              longitude: String(longitude),
+              latitude: String(latitude),
+              bbox: $("bbox").value,
+            });
+          let result;
+          try {
+            result = await json(url);
+          } catch (error) {
+            if (error.data?.status) renderFwi(error.data);
+            throw error;
+          }
+          renderFwi(result);
+          if (result.status === "available" || result.raster_url) {
+            if (result.raster_url?.includes("{z}")) {
+              tiles(
+                "fwi",
+                "FWI area layer",
+                result.raster_url,
+                {
+                  opacity: Number($("fwi-opacity").value) / 100,
+                  attribution: "GWIS Fire Weather Index",
+                },
+                run,
+              );
+            } else if (result.raster_url && result.extent) {
+              const [west, south, east, north] = result.extent;
+              const layer = L.imageOverlay(
+                result.raster_url,
+                [[south, west], [north, east]],
+                {
+                  opacity: Number($("fwi-opacity").value) / 100,
+                  zIndex: tileZIndex("fwi"),
+                },
+              );
+              overlays.set("fwi", layer);
+              state("fwi", "FWI numerical area layer loading", {
+                pending: true,
+              });
+              layer.on("load", () => {
+                if (run === generation)
+                  state("fwi", `FWI numerical grid loaded from ${result.source}`);
+              });
+              layer.on("error", () => {
+                if (run === generation)
+                  state("fwi", "FWI numerical area layer failed", {
+                    error: true,
+                  });
+              });
+              layer.addTo(map);
+            } else {
+              const markerLocation = result.sampled_location || result.location;
+              const marker = L.circleMarker(
+                [markerLocation.latitude, markerLocation.longitude],
+                {
+                  radius: 7,
+                  color: "#8f432c",
+                  weight: 2,
+                  fillColor: "#ed9453",
+                  fillOpacity: 0.9,
+                },
+              ).addTo(map);
+              overlays.set("fwi", marker);
+              state("fwi", `FWI ${number(result.fwi)} loaded from ${result.source}`);
+            }
+          } else if (result.status === "pending") {
+            state("fwi", "FWI pending in the EWDS download queue");
+          } else {
+            state("fwi", `FWI unavailable: ${result.message || "no numerical value"}`);
+          }
+          $("workspace-tabs").hidden = false;
+          enableFullControls();
         });
       if ($("show-hazard").checked)
         task("hazard", "Hazard 2025", async () => {
@@ -1217,7 +1440,7 @@
         task("burn", "Burned area", async () => {
           burnStyle = await json("/api/burn/style");
           if (monthMode) {
-            // Detection & response always shows the month before the selected one.
+            // Detection always shows the month before the selected one.
             burnPeriod = previousMonth($("month-select").value);
           } else if ($("burn-period")) {
             burnPeriod =
@@ -1370,12 +1593,12 @@
       await Promise.allSettled(tasks);
     } finally {
       busy = false;
-      explored = overlays.size > 0;
+      explored = overlays.size > 0 || Boolean(fwiResult);
       for (const el of form.querySelectorAll("input,select,button"))
         el.disabled = false;
       $("load").setAttribute("aria-busy", "false");
       showStep(setupStep);
-      if (loaded) setPanel("activity");
+      if (loaded || fwiResult) setPanel("activity");
       else setPanel("explore");
       const errors = [...layerStates.values()].some((item) => item.error);
       setText(
@@ -1407,15 +1630,37 @@
     true,
   );
   $("export").addEventListener("click", () => {
-    if (!loaded) return;
+    if (!loaded && !fwiResult) return;
+    const data = loaded
+      ? JSON.parse(JSON.stringify(loaded.data))
+      : { type: "FeatureCollection", features: [] };
+    if (fwiResult) {
+      const resultLocation = fwiResult.sampled_location || fwiResult.location;
+      data.features.push({
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [
+            resultLocation.longitude,
+            resultLocation.latitude,
+          ],
+        },
+        properties: {
+          feature_type: "fire_weather_index",
+          ...fwiResult,
+        },
+      });
+    }
     const url = URL.createObjectURL(
-      new Blob([JSON.stringify(loaded.data, null, 2)], {
+      new Blob([JSON.stringify(data, null, 2)], {
         type: "application/geo+json",
       }),
     );
     const link = document.createElement("a");
     link.href = url;
-    link.download = `slim-${loaded.mode}-${loaded.start}-${loaded.end}.geojson`;
+    link.download = loaded
+      ? `slim-${loaded.mode}-${loaded.start}-${loaded.end}.geojson`
+      : `slim-fwi-${fwiResult.date}.geojson`;
     document.body.append(link);
     link.click();
     link.remove();

@@ -17,7 +17,10 @@ dependencies:
   - uvicorn
   - pillow
   - rasterio
+  - xarray
+  - netcdf4
   - pip
   - pip:
+      - cdsapi>=0.7.7
       - nfdrs4py==0.2.2
       - openeo

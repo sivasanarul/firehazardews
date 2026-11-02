@@ -171,7 +171,8 @@ function setup(
         return this;
       },
       addTo() {
-        if (kind === "tile") queueMicrotask(() => listeners.load?.());
+        if (kind === "tile" || kind === "image")
+          queueMicrotask(() => listeners.load?.());
         return this;
       },
       emit(name) {
@@ -204,14 +205,22 @@ function setup(
     map: () => map,
     control: { zoom: () => layer("control"), scale: () => layer("control") },
     tileLayer: (url, options) => Object.assign(layer("tile", options), { url }),
+    imageOverlay: (url, bounds, options) =>
+      Object.assign(layer("image", options), { url, bounds }),
     rectangle: () => layer("rectangle"),
-    circleMarker: () => layer("marker"),
+    circleMarker: (latlng, options) =>
+      Object.assign(layer("marker", options), { latlng }),
     heatLayer: (points, options) =>
       Object.assign(layer("heat", options), { points }),
     geoJSON(data, options) {
       const value = layer("geojson", options);
       const source = data.type === "FeatureCollection" ? data.features : [data];
       const features = source.map((feature) => {
+        if (feature.geometry?.type === "Point")
+          options.pointToLayer?.(feature, {
+            lat: feature.geometry.coordinates[1],
+            lng: feature.geometry.coordinates[0],
+          });
         const child = layer("feature");
         options.onEachFeature?.(feature, child);
         return child;
@@ -390,15 +399,21 @@ test("invalid date order and coordinates do not request or clear observations", 
 });
 
 test("fire results update metrics, safe popups, result navigation, and export availability", async (t) => {
+  const recent = new Date(Date.now() - 2 * 3_600_000).toISOString();
+  const older = new Date(Date.now() - 48 * 3_600_000).toISOString();
   const { submit, $, calls, layers, mapCalls } = setup(t, {
     "/api/fires": collection(
-      point({ satellite: "<img src=x onerror=alert(1)>" }),
-      point({ frp: 38 }),
+      point({
+        satellite: "<img src=x onerror=alert(1)>",
+        frp: 10,
+        acq_datetime_utc: older,
+      }),
+      point({ frp: 100, acq_datetime_utc: recent }),
     ),
   });
   await submit();
   assert.equal($("detection-count").textContent, "2");
-  assert.equal($("max-frp").textContent, "38");
+  assert.equal($("max-frp").textContent, "100");
   assert.equal(
     $("period-days").textContent,
     String(new Date(2026, Number(lastMonth2026().slice(5)), 0).getDate()),
@@ -410,6 +425,16 @@ test("fire results update metrics, safe popups, result navigation, and export av
     null,
   );
   assert.equal($("export").disabled, false);
+  const fireMarkers = layers.filter((layer) => layer.kind === "marker");
+  assert.equal(fireMarkers.length >= 2, true);
+  assert.equal(
+    fireMarkers[1].options.radius > fireMarkers[0].options.radius,
+    true,
+  );
+  assert.equal(fireMarkers[0].options.fillColor, "#fdcc8a");
+  assert.equal(fireMarkers[1].options.fillColor, "#d7301f");
+  assert.match($("legend-content").textContent, /size by FRP/i);
+  assert.match($("legend-content").textContent, /colour shows age/i);
   assert.ok(calls.some((url) => url.includes(`start=${lastMonth2026()}-01`)));
   $("results-list").firstChild.click();
   assert.equal(layers.find((layer) => layer.kind === "feature").open, true);
@@ -667,7 +692,7 @@ test("the mobile menu toggle remains available and resumes the current setup ste
   assert.equal($("dates-step").hidden, false);
 });
 
-test("landing page links to all three workspaces and labels unavailable modules", () => {
+test("landing page links to all four workspaces and labels unavailable modules", () => {
   const dom = new JSDOM(
     fs.readFileSync(path.join(root, "static/index.html"), "utf8"),
     { runScripts: "outside-only" },
@@ -679,7 +704,7 @@ test("landing page links to all three workspaces and labels unavailable modules"
     fs.readFileSync(path.join(root, "static/landing.js"), "utf8"),
   );
   const cards = [...dom.window.document.querySelectorAll(".scenario-card")];
-  assert.equal(cards.length, 3);
+  assert.equal(cards.length, 4);
   assert.ok(
     cards[1].querySelector('svg path[d*="M12 2v3"]'),
     "detection card uses the response beacon",
@@ -689,12 +714,13 @@ test("landing page links to all three workspaces and labels unavailable modules"
     [
       "/map?scenario=prevention",
       "/map?scenario=response",
+      "/map?scenario=prediction",
       "/map?scenario=restoration",
     ],
   );
   assert.deepEqual(
     cards.map((card) => card.querySelectorAll(".future-modules .badge").length),
-    [1, 3, 1],
+    [1, 1, 2, 1],
     "the roadmap follows the brief's scenario-specific future scope",
   );
   assert.match(cards[0].querySelector(".available").textContent, /Hazard map/);
@@ -715,7 +741,7 @@ test("landing page links to all three workspaces and labels unavailable modules"
   dom.window.close();
 });
 
-for (const scenario of ["prevention", "restoration"]) {
+for (const scenario of ["prevention", "prediction", "restoration"]) {
   test(`${scenario} cannot request FIRMS even if a stale fire selection is present`, async (t) => {
     const { submit, $, calls } = setup(
       t,
@@ -748,19 +774,19 @@ for (const scenario of ["prevention", "restoration"]) {
     assert.equal($("show-fuel").checked, false);
     assert.equal(
       $("show-fuel").closest(".layer-card").hidden,
-      scenario !== "response",
+      !["response", "prediction"].includes(scenario),
     );
     assert.equal(
       $("show-precip-heatmap").closest(".layer-card").hidden,
-      scenario !== "response",
+      !["response", "prediction"].includes(scenario),
     );
-    // Scenario 3 makes the SLIM recovery raster its primary layer.
+    // Scenario 4 makes the SLIM recovery raster its primary layer.
     assert.equal($("show-burn").checked, scenario !== "prevention");
     assert.equal($("show-recovery").checked, scenario === "restoration");
     assert.equal($("show-burned-area"), null);
     assert.equal(
       $("selected-count").textContent,
-      scenario === "prevention" ? "2 selected" : "3 selected",
+      scenario === "restoration" ? "3 selected" : "2 selected",
     );
     // The environmental-context panel opens only when a layer inside it is on.
     assert.equal(
@@ -772,7 +798,7 @@ for (const scenario of ["prevention", "restoration"]) {
       /future features/i,
     );
     const navigation = window.document.querySelector(".scenario-navigation");
-    assert.equal(navigation.querySelectorAll("a").length, 3);
+    assert.equal(navigation.querySelectorAll("a").length, 4);
     assert.equal(
       navigation.querySelector('[aria-current="page"]').getAttribute("href"),
       `/map?scenario=${scenario}`,
@@ -796,8 +822,9 @@ for (const scenario of ["prevention", "restoration"]) {
     );
     assert.equal($("export").hidden, true);
     assert.equal($("area-step").hidden, false);
-    // Both prevention and restoration use fixed 2025 rasters and skip Dates.
-    assert.equal($("dates-step").hidden, true);
+    // Prevention and restoration use fixed 2025 rasters and skip Dates;
+    // prediction retains a selectable context period.
+    assert.equal($("dates-step").hidden, scenario !== "prediction");
     assert.equal($("layers-step").hidden, false);
     assert.equal(
       window.document.querySelector(".scenario-home").getAttribute("href"),
@@ -806,7 +833,7 @@ for (const scenario of ["prevention", "restoration"]) {
   });
 }
 
-test("scenario 3 leads with recovery, fixes burned area to 2025, and skips Dates", async (t) => {
+test("scenario 4 leads with recovery, fixes burned area to 2025, and skips Dates", async (t) => {
   const { $, submit, layers, calls, window, change } = setup(
     t,
     { "/api/land-cover/selection": { year: 2025, resolution_m: 30 } },
@@ -906,6 +933,110 @@ test("scenario 2 reviews a 2026 month and shows the previous month's burn mask",
         layer.url.includes(`period=${previous}`),
     ),
   );
+});
+
+test("detection loads numerical FWI at the selected extent centre", async (t) => {
+  const result = {
+    date: "2026-10-13",
+    location: { longitude: 27.85, latitude: -13.15 },
+    source: "GWIS numerical FWI",
+    product: "fire_weather_index",
+    fwi: 12.4,
+    unit: "dimensionless",
+    retrieval_time: "2026-10-13T12:00:00+00:00",
+    status: "available",
+    sampling: "point query",
+    extent: [21.9, -18.1, 33.8, -8.2],
+    coverage: "single provider-rendered WMS image across selected extent",
+    raster_url:
+      "/api/fire-weather-index/gwis/raster.png?date=2026-10-13&bbox=21.9%2C-18.1%2C33.8%2C-8.2",
+  };
+  const { $, change, submit, calls, layers } = setup(
+    t,
+    { "/api/fire-weather-index": result },
+    { scenario: "response" },
+  );
+  assert.equal($("fwi-card").hidden, false);
+  change("show-fwi", true);
+  change("fwi-date", result.date);
+  await submit();
+  const request = calls.find((url) => url.startsWith("/api/fire-weather-index?"));
+  assert.ok(request);
+  const params = new URL(request, "http://localhost").searchParams;
+  assert.equal(params.get("date"), result.date);
+  assert.equal(Number(params.get("longitude")), 27.85);
+  assert.equal(Number(params.get("latitude")), -13.15);
+  assert.equal(params.get("bbox"), "21.9,-18.1,33.8,-8.2");
+  assert.equal($("fwi-status").textContent, "Available");
+  assert.match($("fwi-value").textContent, /12.4.*dimensionless/);
+  assert.equal($("fwi-source").textContent, "GWIS numerical FWI");
+  assert.equal($("fwi-sampling").textContent, "point query");
+  assert.ok(layers.some((layer) => layer.kind === "image" && layer.url === result.raster_url));
+  assert.match($("legend-content").textContent, /FWI area layer.*12.4/);
+  assert.equal($("export").disabled, false);
+});
+
+test("queued EWDS FWI is shown as pending without a point marker", async (t) => {
+  const { $, change, submit, layers } = setup(
+    t,
+    {
+      "/api/fire-weather-index": {
+        date: "2020-07-01",
+        location: { longitude: 27.85, latitude: -13.15 },
+        source: "Copernicus EWDS ERA5 historical FWI",
+        product: "fire_weather_index",
+        fwi: null,
+        unit: "dimensionless",
+        retrieval_time: "2026-10-13T12:00:00+00:00",
+        status: "pending",
+        sampling: "nearest grid cell",
+        message: "EWDS download is queued or processing.",
+      },
+    },
+    { scenario: "response" },
+  );
+  change("show-fire", false);
+  change("show-burn", false);
+  change("show-districts", false);
+  change("show-fwi", true);
+  change("fwi-date", "2020-07-01");
+  await submit();
+  assert.equal($("fwi-status").textContent, "Pending");
+  assert.match($("fwi-message").textContent, /queued/);
+  assert.equal(layers.some((layer) => layer.kind === "marker"), false);
+  assert.equal($("activity-panel").hidden, false);
+});
+
+test("available EWDS FWI displays the numerical grid over the selected extent", async (t) => {
+  const result = {
+    date: "2020-07-01",
+    location: { longitude: 27.85, latitude: -13.15 },
+    sampled_location: { longitude: 27.75, latitude: -13.25 },
+    extent: [21.9, -18.1, 33.8, -8.2],
+    source: "Copernicus EWDS ERA5 historical FWI",
+    fwi: 8.5,
+    unit: "dimensionless",
+    retrieval_time: "2026-10-14T08:00:00+00:00",
+    status: "available",
+    sampling: "nearest grid cell",
+    coverage: "numerical raster across selected extent",
+    raster_url: "/api/fire-weather-index/rasters/abc.png",
+    statistics: { min: 1, mean: 9.2, max: 23, cell_count: 1200 },
+  };
+  const { $, change, submit, layers } = setup(
+    t,
+    { "/api/fire-weather-index": result },
+    { scenario: "response" },
+  );
+  change("show-fwi", true);
+  change("fwi-date", result.date);
+  await submit();
+  const image = layers.find((layer) => layer.kind === "image");
+  assert.equal(image.url, result.raster_url);
+  assert.deepEqual(image.bounds, [[-18.1, 21.9], [-8.2, 33.8]]);
+  assert.match($("fwi-statistics").textContent, /1,200 cells.*min 1.*mean 9.2.*max 23/);
+  assert.equal($("fwi-sampled-location").textContent, "-13.2500, 27.7500");
+  assert.match($("legend-content").textContent, /1.*Lower.*23.*Higher/);
 });
 
 test("prevention hides the SLIM burn mask", async (t) => {

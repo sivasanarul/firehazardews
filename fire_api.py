@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 try:
+    from .fire_weather_client import FireWeatherError, FireWeatherUnavailable, failed_fire_weather_result, get_ewds_fwi_raster, get_fire_weather_index, get_gwis_fwi_raster, get_gwis_fwi_tile
     from .landscape_client import LandscapeError, get_districts, get_district_summary, get_hazard_tile, hazard_style, burn_periods, get_burn_tile, recovery_style, get_recovery_tile
     from .burned_area_client import BurnedAreaError, get_burned_area_tile
     from .consolidate_15days import consolidate_fire_events
@@ -31,6 +32,7 @@ try:
     from .map_view import read_map_html
     from .qml_style import load_qml_style
 except ImportError:  # Allow: python slim_fire/fire_api.py
+    from fire_weather_client import FireWeatherError, FireWeatherUnavailable, failed_fire_weather_result, get_ewds_fwi_raster, get_fire_weather_index, get_gwis_fwi_raster, get_gwis_fwi_tile
     from landscape_client import LandscapeError, get_districts, get_district_summary, get_hazard_tile, hazard_style, burn_periods, get_burn_tile, recovery_style, get_recovery_tile
     from burned_area_client import BurnedAreaError, get_burned_area_tile
     from consolidate_15days import consolidate_fire_events
@@ -56,6 +58,12 @@ app.add_middleware(GZipMiddleware, minimum_size=1_000)
 # source at that URL has changed; the server-side tile cache still avoids
 # repeated COG reads.
 RECOVERY_CACHE_HEADERS = {"Cache-Control": "no-cache"}
+DEFAULT_FIRMS_REGION = (21.9, -18.1, 33.8, -8.2)
+TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
+
+
+class FirmsBoundaryError(RuntimeError):
+    """Raised when an enabled FIRMS boundary cannot be applied safely."""
 
 
 class RevalidatingStaticFiles(StaticFiles):
@@ -100,6 +108,72 @@ def get_client() -> FirmsClient:
         map_key=os.getenv("FIRMS_MAP_KEY", ""),
         cache_dir=os.getenv("FIRMS_CACHE_DIR", ".cache/firms"),
     )
+
+
+def firms_boundary_enabled() -> bool:
+    return os.getenv("FIRMS_BOUNDARY_ENABLED", "").strip().lower() in TRUTHY_ENV_VALUES
+
+
+def load_firms_boundary() -> gpd.GeoDataFrame | None:
+    """Load the optional FIRMS restriction boundary in WGS84.
+
+    An enabled boundary is a safety constraint, so configuration and geometry
+    errors are raised rather than allowing an unfiltered FIRMS response.
+    """
+    if not firms_boundary_enabled():
+        return None
+
+    configured_path = os.getenv("FIRMS_BOUNDARY_GPKG", "greennexus_ews.gpkg")
+    boundary_path = Path(configured_path).expanduser()
+    if not boundary_path.is_absolute():
+        boundary_path = Path(__file__).parent / boundary_path
+    layer = os.getenv("FIRMS_BOUNDARY_LAYER", "landscape_slim_updated").strip()
+
+    if not boundary_path.is_file():
+        raise FirmsBoundaryError(f"FIRMS boundary GeoPackage not found: {boundary_path}")
+    try:
+        boundary = gpd.read_file(boundary_path, layer=layer or None)
+    except Exception as exc:
+        raise FirmsBoundaryError(
+            f"Could not read FIRMS boundary layer '{layer}' from {boundary_path}: {exc}"
+        ) from exc
+    if boundary.empty or "geometry" not in boundary:
+        raise FirmsBoundaryError("FIRMS boundary layer contains no geometry")
+    if boundary.crs is None:
+        raise FirmsBoundaryError("FIRMS boundary layer has no coordinate reference system")
+
+    boundary = boundary.loc[
+        boundary.geometry.notna() & ~boundary.geometry.is_empty, ["geometry"]
+    ].copy()
+    if boundary.empty:
+        raise FirmsBoundaryError("FIRMS boundary layer contains no usable geometry")
+    try:
+        boundary = boundary.to_crs("EPSG:4326")
+        geometry = boundary.geometry.union_all()
+        if not geometry.is_valid:
+            geometry = geometry.buffer(0)
+    except Exception as exc:
+        raise FirmsBoundaryError(f"Could not prepare FIRMS boundary geometry: {exc}") from exc
+    if geometry.is_empty:
+        raise FirmsBoundaryError("FIRMS boundary geometry is empty")
+    return gpd.GeoDataFrame(geometry=[geometry], crs="EPSG:4326")
+
+
+def restrict_firms_to_boundary(
+    fires: gpd.GeoDataFrame,
+    boundary: gpd.GeoDataFrame | None,
+) -> gpd.GeoDataFrame:
+    """Keep only FIRMS detections intersecting the configured boundary."""
+    if boundary is None or fires.empty:
+        return fires
+    if fires.crs is None:
+        raise FirmsBoundaryError("FIRMS detections have no coordinate reference system")
+    try:
+        normalized = fires.to_crs("EPSG:4326")
+        mask = normalized.geometry.intersects(boundary.geometry.iloc[0])
+    except Exception as exc:
+        raise FirmsBoundaryError(f"Could not filter FIRMS detections by boundary: {exc}") from exc
+    return normalized.loc[mask].copy()
 
 
 def load_firms_from_gpkg(bbox: str, start: date, end: date) -> gpd.GeoDataFrame | None:
@@ -238,7 +312,7 @@ def load_precipitation_from_gpkg(
 
 def get_fire_data(bbox: str, start: date, end: date, sensor: str):
     """
-    Fetch FIRMS data constrained to the allowed region (21.9,-18.1,33.8,-8.2).
+    Fetch FIRMS data constrained to the configured region.
     
     Tries to load from preloaded GeoPackage first if USE_LOCAL_FIRMS=true,
     otherwise fetches from NASA FIRMS API.
@@ -247,10 +321,14 @@ def get_fire_data(bbox: str, start: date, end: date, sensor: str):
         raise HTTPException(status_code=422, detail="start must be on or before end")
     try:
         coordinates = parse_bbox(bbox)
-        # Constrain to allowed region: west, south, east, north
-        ALLOWED_REGION = (21.9, -18.1, 33.8, -8.2)
+        boundary = load_firms_boundary()
+        allowed_region = (
+            tuple(float(value) for value in boundary.total_bounds)
+            if boundary is not None
+            else DEFAULT_FIRMS_REGION
+        )
         west, south, east, north = coordinates
-        allowed_west, allowed_south, allowed_east, allowed_north = ALLOWED_REGION
+        allowed_west, allowed_south, allowed_east, allowed_north = allowed_region
         
         # Calculate intersection
         constrained_west = max(west, allowed_west)
@@ -259,7 +337,7 @@ def get_fire_data(bbox: str, start: date, end: date, sensor: str):
         constrained_north = min(north, allowed_north)
         
         # Check if intersection is valid
-        if constrained_west > constrained_east or constrained_south > constrained_north:
+        if constrained_west >= constrained_east or constrained_south >= constrained_north:
             # No intersection with allowed region
             return gpd.GeoDataFrame(geometry=[], crs="EPSG:4326")
         
@@ -276,6 +354,11 @@ def get_fire_data(bbox: str, start: date, end: date, sensor: str):
             constrained_coordinates = (constrained_west, constrained_south, constrained_east, constrained_north)
             gdf = get_client().download(constrained_coordinates, start, end, sensor)
             print(f"[FIRMS] Downloaded {len(gdf)} records from API")
+
+        if boundary is not None:
+            before = len(gdf)
+            gdf = restrict_firms_to_boundary(gdf, boundary)
+            print(f"[FIRMS] Boundary filter retained {len(gdf)} of {before} records")
         
         # Convert all datetime columns to strings for JSON serialization
         for col in gdf.columns:
@@ -287,6 +370,8 @@ def get_fire_data(bbox: str, start: date, end: date, sensor: str):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except FirmsError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except FirmsBoundaryError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get("/health")
@@ -327,6 +412,118 @@ def fire_events(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return JSONResponse(content=json.loads(events.to_json(drop_id=True, na="null")))
+
+
+@app.get("/api/fire-weather-index")
+def fire_weather_index(
+    selected_date: date = Query(..., alias="date"),
+    longitude: float = Query(..., ge=-180, le=180),
+    latitude: float = Query(..., ge=-90, le=90),
+    bbox: str | None = Query(None),
+) -> JSONResponse:
+    """Return centre FWI and an extent layer, routed to GWIS or EWDS by UTC date."""
+    try:
+        extent = parse_bbox(bbox) if bbox else None
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        result = get_fire_weather_index(
+            selected_date=selected_date,
+            longitude=longitude,
+            latitude=latitude,
+            cache_dir=os.getenv("FWI_CACHE_DIR", ".cache/fire_weather"),
+            extent=extent,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except FireWeatherError as exc:
+        result = failed_fire_weather_result(
+            selected_date, longitude, latitude, str(exc)
+        )
+        return JSONResponse(content=result, status_code=502)
+    status_code = 502 if result["status"] == "failed" else 200
+    return JSONResponse(
+        content=result,
+        status_code=status_code,
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+@app.get(
+    "/api/fire-weather-index/gwis/raster.png",
+    include_in_schema=False,
+)
+def fire_weather_gwis_raster(
+    selected_date: date = Query(..., alias="date"),
+    bbox: str = Query(...),
+) -> Response:
+    """Proxy one cached GWIS FWI WMS image for the selected extent."""
+    try:
+        extent = parse_bbox(bbox)
+        content = get_gwis_fwi_raster(
+            selected_date,
+            extent,
+            os.getenv("FWI_CACHE_DIR", ".cache/fire_weather"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except FireWeatherError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return Response(
+        content=content,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@app.get(
+    "/api/fire-weather-index/gwis/tiles/{z}/{x}/{y}.png",
+    include_in_schema=False,
+)
+def fire_weather_gwis_tile(
+    z: int, x: int, y: int, selected_date: date = Query(..., alias="date")
+) -> Response:
+    """Proxy the official styled GWIS FWI WMS layer for recent dates."""
+    try:
+        content = get_gwis_fwi_tile(
+            selected_date,
+            x,
+            y,
+            z,
+            os.getenv("FWI_CACHE_DIR", ".cache/fire_weather"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except FireWeatherError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return Response(
+        content=content,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@app.get(
+    "/api/fire-weather-index/rasters/{raster_id}.png",
+    include_in_schema=False,
+)
+def fire_weather_ewds_raster(raster_id: str) -> Response:
+    """Render a cached numerical EWDS FWI grid for its selected extent."""
+    try:
+        content = get_ewds_fwi_raster(
+            raster_id, os.getenv("FWI_CACHE_DIR", ".cache/fire_weather")
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except FireWeatherUnavailable as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FireWeatherError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return Response(
+        content=content,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @app.get("/api/burned-area/tiles/{z}/{x}/{y}.png", include_in_schema=False)

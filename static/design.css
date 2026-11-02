@@ -21,6 +21,12 @@
   --scenario-soft: #fbefe5;
   --scenario-ink: #a45e31;
 }
+.prediction,
+[data-scenario="prediction"] {
+  --scenario-accent: #d5b85f;
+  --scenario-soft: #faf4dc;
+  --scenario-ink: #806817;
+}
 .restoration,
 [data-scenario="restoration"] {
   --scenario-accent: #7fbfd1;
@@ -41,7 +47,7 @@ select:focus-visible {
   outline-offset: 4px;
 }
 
-/* Landing: a calm introduction followed by three equally weighted choices. */
+/* Landing: a calm introduction followed by equally weighted choices. */
 .landing main {
   max-width: 1440px;
 }
@@ -90,6 +96,25 @@ select:focus-visible {
 .landing .cycle {
   opacity: 0.9;
 }
+.landing .orbit-four {
+  width: 235px;
+  height: 155px;
+  top: 42px;
+  left: 46px;
+  transform: rotate(90deg);
+}
+.landing .detection {
+  right: -13px;
+  top: 58px;
+}
+.landing .forecast {
+  right: -13px;
+  bottom: 34px;
+}
+.landing .after {
+  bottom: 3px;
+  left: 28px;
+}
 .landing .section-heading {
   padding-top: 24px;
   border-top: 1px solid var(--slim-line);
@@ -101,6 +126,7 @@ select:focus-visible {
 .landing .scenario-grid {
   align-items: stretch;
   gap: 22px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .landing .scenario-card {
   display: flex;
@@ -405,6 +431,9 @@ select:focus-visible {
 }
 
 @media (max-width: 1150px) {
+  .landing .scenario-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .map-page .header-context {
     display: none;
   }
@@ -444,6 +473,7 @@ select:focus-visible {
   }
   .landing .scenario-grid {
     gap: 18px;
+    grid-template-columns: 1fr;
   }
   .landing .demo-note {
     margin-bottom: 0;

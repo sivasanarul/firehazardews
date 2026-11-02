@@ -1,1 +1,10 @@
-.cache
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Application caches
+.cache/
+.cache/*
+greennexus_ews.gpkg
+firehazardews.log
+uvicorn.log

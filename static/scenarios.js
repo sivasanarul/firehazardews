@@ -34,7 +34,7 @@ window.SLIM_SCENARIOS = [
   {
     id: "response",
     number: "02",
-    title: "Detection & response",
+    title: "Detection",
     short: "Detection",
     phase: "During the fire",
     description:
@@ -43,6 +43,28 @@ window.SLIM_SCENARIOS = [
     icon: "beacon",
     available: [
       "FIRMS fire detections",
+      "Numerical Fire Weather Index",
+      "District boundaries",
+      "Burned area (SLIM · monthly & yearly)",
+      ...ENVIRONMENTAL_CONTEXT,
+    ],
+    future: [
+      ["Ground sensors", "Complement satellite observations", "Concept"],
+    ],
+    defaults: ["show-districts", "show-burn"],
+    note: "Detect fires in a single 2026 month and overlay the burned-area mask of the previous month. Add environmental context as needed; ground sensors are a future feature.",
+  },
+  {
+    id: "prediction",
+    number: "03",
+    title: "Prediction",
+    short: "Prediction",
+    phase: "Ahead of fire spread",
+    description:
+      "Explore the landscape context needed to anticipate fire spread and future risk.",
+    question: "Where could fire spread next?",
+    icon: "forecast",
+    available: [
       "District boundaries",
       "Burned area (SLIM · monthly & yearly)",
       ...ENVIRONMENTAL_CONTEXT,
@@ -50,18 +72,17 @@ window.SLIM_SCENARIOS = [
     future: [
       ["Fire propagation", "Explore how a fire could spread", "Planned"],
       [
-        "Risk assessment",
-        "Identify areas requiring preparedness action",
+        "Risk prediction",
+        "Identify landscapes at elevated future risk",
         "Planned",
       ],
-      ["Ground sensors", "Complement satellite observations", "Concept"],
     ],
-    defaults: ["show-districts", "show-burn"],
-    note: "Detect fires in a single 2026 month and overlay the burned-area mask of the previous month. Add environmental context as needed; propagation, risk assessment, and ground sensors are future features.",
+    defaults: ["show-burn", "show-districts"],
+    note: "Review burned-area and landscape context for a selected period. Fire propagation and risk prediction are planned modules and do not yet produce results.",
   },
   {
     id: "restoration",
-    number: "03",
+    number: "04",
     title: "Restoration & adaptation",
     short: "Restoration",
     phase: "After the fire",
