@@ -218,6 +218,14 @@
               <h2 tabindex="-1">Adjust your map</h2>
               <p>Change any setting, then update the map.</p>
             </div>
+            <div class="map-view-controls" id="map-view-controls" hidden>
+              <label for="map-view">Map layout</label>
+              <select id="map-view" aria-describedby="map-view-note">
+                <option value="compare" selected>Compare maps (automatic)</option>
+                <option value="single">Single map</option>
+              </select>
+              <p class="field-note" id="map-view-note"></p>
+            </div>
             <div class="setup-intro" id="setup-intro">
               <span class="eyebrow" id="step-caption">STEP 1 OF 3</span>
               <h2 id="step-title" tabindex="-1">
@@ -546,9 +554,8 @@
                   Add environmental context <span>Optional</span>
                 </summary>
                 <p class="field-note">
-                  Compare operational layers with land cover, vegetation fuel,
-                  and precipitation. District boundaries remain the reporting
-                  reference.
+                  Compare operational layers with land cover and vegetation
+                  fuel. District boundaries remain the reporting reference.
                 </p>
                 <div class="layer-card">
                   <label
@@ -835,6 +842,12 @@
     <main id="workspace" tabindex="-1">
       <div class="map-workspace">
         <div id="map" aria-label="Interactive fire monitoring map"></div>
+        <div
+          id="comparison-grid"
+          class="comparison-grid"
+          aria-label="Synchronized layer comparison maps"
+          hidden
+        ></div>
         <section
           class="satellite-map-bar"
           id="satellite-map-bar"
@@ -915,6 +928,18 @@
         <strong>Explore map</strong>. After loading, select a fire marker for
         details or browse the Results tab. Use
         <strong>Adjust map settings</strong> to change your selection.
+      </p>
+      <p>
+        Selecting two to four of FIRMS, Fire Weather Index, burned area, land
+        cover and vegetation fuel automatically opens synchronized comparison
+        maps. Two layers use side-by-side panels, three use columns, and four
+        use a 2 × 2 grid; selecting all five keeps the single map.
+        On smaller screens, swipe between panels using the space around each map.
+        Pan, zoom, cursor location and selected fire locations are shared.
+        Each panel has its own legend, opacity and loading status. Satellite
+        imagery appears only on the FIRMS panel. Choose <strong>Single map</strong>
+        under Map layout to overlay layers instead. Precipitation, hazard and
+        recovery layers always use the single map.
       </p>
       <dl>
         <dt>Fire detections · NASA FIRMS</dt>

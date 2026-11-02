@@ -128,45 +128,90 @@ function setup(
   const $ = (id) => window.document.getElementById(id);
   const calls = [],
     layers = [],
-    mapCalls = [];
+    mapCalls = [],
+    maps = [];
   window.matchMedia = () => ({ matches: mobile, addEventListener() {} });
   window.ResizeObserver = class {
     observe() {}
   };
-  const map = {
-    createPane() {
-      return { style: {} };
-    },
-    setView(...args) {
-      mapCalls.push(["setView", ...args]);
-      return this;
-    },
-    fitBounds(...args) {
-      mapCalls.push(["fitBounds", ...args]);
-      return this;
-    },
-    getCenter() {
-      return { lat: -13, lng: 27 };
-    },
-    getZoom() {
-      return 6;
-    },
-    getBounds() {
-      return {
-        getWest: () => 22,
-        getSouth: () => -18,
-        getEast: () => 33,
-        getNorth: () => -8,
-      };
-    },
-    on() {
-      return this;
-    },
-    invalidateSize() {},
-    removeLayer(layer) {
-      layer.removed = true;
-    },
-  };
+  function makeMap(container, options) {
+    const listeners = {};
+    let center = { lat: -13, lng: 27 };
+    let zoom = 6;
+    const value = {
+      container,
+      options,
+      layers: new Set(),
+      calls: [],
+      createPane() {
+        return { style: {} };
+      },
+      setView(...args) {
+        mapCalls.push(["setView", ...args]);
+        this.calls.push(["setView", ...args]);
+        const location = Array.isArray(args[0])
+          ? { lat: args[0][0], lng: args[0][1] }
+          : args[0];
+        const changed = center.lat !== location.lat || center.lng !== location.lng || zoom !== args[1];
+        center = location;
+        zoom = args[1];
+        if (changed) {
+          this.emit("zoomend");
+          this.emit("moveend");
+        }
+        return this;
+      },
+      fitBounds(...args) {
+        const bounds = args[0];
+        if (Array.isArray(bounds))
+          this.setView([
+            (bounds[0][0] + bounds[1][0]) / 2,
+            (bounds[0][1] + bounds[1][1]) / 2,
+          ], 6);
+        mapCalls.push(["fitBounds", ...args]);
+        this.calls.push(["fitBounds", ...args]);
+        return this;
+      },
+      getCenter() {
+        return center;
+      },
+      getZoom() {
+        return zoom;
+      },
+      getBounds() {
+        return {
+          getWest: () => 22,
+          getSouth: () => -18,
+          getEast: () => 33,
+          getNorth: () => -8,
+        };
+      },
+      on(names, callback) {
+        for (const name of names.split(" "))
+          (listeners[name] ||= []).push(callback);
+        return this;
+      },
+      emit(name, event) {
+        for (const callback of listeners[name] || []) callback(event);
+      },
+      invalidateSize() {},
+      removeLayer(layer) {
+        layer.removed = true;
+        this.layers.delete(layer);
+        if (layer.target === this) layer.target = null;
+      },
+      remove() {
+        this.removed = true;
+        for (const layer of this.layers) {
+          layer.target = null;
+          layer.removed = true;
+        }
+        this.layers.clear();
+      },
+    };
+    maps.push(value);
+    return value;
+  }
   function layer(kind, options = {}) {
     const listeners = {};
     const value = {
@@ -176,7 +221,10 @@ function setup(
         listeners[name] = fn;
         return this;
       },
-      addTo() {
+      addTo(target) {
+        this.target = target;
+        this.removed = false;
+        target.layers.add(this);
         if (kind === "tile" || kind === "image")
           queueMicrotask(() => listeners.load?.());
         return this;
@@ -186,6 +234,13 @@ function setup(
       },
       setOpacity(opacity) {
         this.opacity = opacity;
+      },
+      setStyle(style) {
+        this.style = style;
+      },
+      setLatLng(latlng) {
+        this.latlng = latlng;
+        return this;
       },
       bringToBack() {
         this.sentToBack = true;
@@ -208,7 +263,7 @@ function setup(
     return value;
   }
   window.L = {
-    map: () => map,
+    map: makeMap,
     control: { zoom: () => layer("control"), scale: () => layer("control") },
     tileLayer: (url, options) => Object.assign(layer("tile", options), { url }),
     imageOverlay: (url, bounds, options) =>
@@ -289,6 +344,7 @@ function setup(
     fs.readFileSync(path.join(root, "static/scenario-map.js"), "utf8"),
   );
   window.eval(script);
+  const map = maps[0];
   const change = (id, value) => {
     if (typeof value === "boolean") $(id).checked = value;
     else $(id).value = value;
@@ -303,7 +359,7 @@ function setup(
     await flush();
     await flush();
   };
-  return { window, $, calls, layers, mapCalls, map, change, submit };
+  return { window, $, calls, layers, mapCalls, map, maps, change, submit };
 }
 
 for (const scenario of ["prevention", "response", "restoration"]) {
@@ -635,15 +691,20 @@ test("a failed environmental request does not block successful fire data", async
 });
 
 test("precipitation uses the selected end date, reports status, and changes only heat opacity", async (t) => {
-  const { change, submit, $, window, calls } = setup(t, {
-    "/api/precipitation/heatmap": collection(point({ intensity: 0.3 })),
-  });
+  // Precipitation is available in the prediction scenario only.
+  const { change, submit, $, window, calls } = setup(
+    t,
+    { "/api/precipitation/heatmap": collection(point({ intensity: 0.3 })) },
+    { scenario: "prediction" },
+  );
   change("show-precip-heatmap", true);
   change("show-fire", false);
+  change("start", "2025-07-01");
+  change("end", "2025-07-15");
   await submit();
   assert.ok(
     calls.some((url) =>
-      url.includes(`observation_date=${utcToday()}`),
+      url.includes("observation_date=2025-07-15"),
     ),
   );
   assert.match($("status").textContent, /Precipitation: 1 observations/);
@@ -938,7 +999,7 @@ for (const scenario of ["prevention", "prediction", "restoration"]) {
     );
     assert.equal(
       $("show-precip-heatmap").closest(".layer-card").hidden,
-      !["response", "prediction"].includes(scenario),
+      scenario !== "prediction",
     );
     // Scenario 4 makes the SLIM recovery raster its primary layer.
     assert.equal($("show-burn").checked, scenario !== "prevention");
@@ -1396,6 +1457,7 @@ test("header feedback follows actual pending requests, unsaved settings, and fai
             release = resolve;
           }),
   });
+
   assert.equal($("workspace-state").textContent, "No layers loaded");
   const pending = submit();
   await flush();
@@ -1411,4 +1473,291 @@ test("header feedback follows actual pending requests, unsaved settings, and fai
   await submit();
   assert.equal($("workspace-state").textContent, "Needs attention");
   assert.equal(window.document.body.classList.contains("map-loading"), false);
+});
+
+const comparisonChoices = [
+  ["show-fire", "FIRMS fire activity"],
+  ["show-burn", "Burned area"],
+  ["show-land-cover", "Land cover"],
+  ["show-fuel", "Vegetation fuel"],
+];
+
+test("comparison layout covers every subset of the four datasets", async (t) => {
+  for (let mask = 1; mask < 16; mask++) {
+    await t.test(`selection ${mask}`, async (t) => {
+      const { change, submit, $, maps, layers } = setup(t, {
+        "/api/land-cover/selection": { year: 2024, resolution_m: 10 },
+      });
+      const selected = comparisonChoices.filter((_, index) => mask & (1 << index));
+      for (const [index, [id]] of comparisonChoices.entries())
+        change(id, Boolean(mask & (1 << index)));
+      await submit();
+      const panels = [...$("comparison-grid").querySelectorAll(".comparison-panel")];
+      if (selected.length === 1) {
+        assert.equal($("comparison-grid").hidden, true);
+        assert.equal(maps.length, 1);
+      } else {
+        assert.equal($("comparison-grid").hidden, false);
+        assert.ok($("comparison-grid").classList.contains(`count-${selected.length}`));
+        assert.deepEqual(panels.map((panel) => panel.querySelector("h3").textContent), selected.map(([, title]) => title));
+        assert.equal(maps.length, selected.length + 1);
+        for (const map of maps.slice(1)) {
+          assert.ok([...map.layers].some((layer) =>
+            layer.kind === "geojson" || layer.url?.startsWith("/api/")));
+          assert.ok([...map.layers].some((layer) => layer.kind === "geojson"));
+        }
+        assert.equal(layers.filter((layer) => layer.kind === "control" && layer.target !== maps[0]).length, 2);
+      }
+    });
+  }
+});
+
+test("comparison maps synchronize navigation, cursor and selected locations without recursion", async (t) => {
+  const { change, submit, $, maps, layers } = setup(t);
+  change("show-burn", true);
+  change("show-fuel", true);
+  await submit();
+  const source = maps[2];
+  source.setView({ lat: -12, lng: 28 }, 9);
+  for (const map of maps) {
+    assert.deepEqual(map.getCenter(), { lat: -12, lng: 28 });
+    assert.equal(map.getZoom(), 9);
+    assert.ok(map.calls.length < 50);
+  }
+  source.emit("mousemove", { latlng: { lat: -11, lng: 29 } });
+  assert.equal(layers.filter((layer) => layer.kind === "marker" && layer.options.radius === 5 && layer.target).length, 3);
+  source.emit("mouseout");
+  assert.equal(layers.filter((layer) => layer.kind === "marker" && layer.options.radius === 5 && layer.target).length, 0);
+  $("results-list").firstChild.click();
+  assert.equal(layers.filter((layer) => layer.kind === "marker" && layer.options.radius === 9 && layer.target).length, 3);
+  for (const map of maps) assert.equal(map.getZoom(), 10);
+  await flush();
+  await flush();
+  $("fit-area").click();
+  for (const map of maps) assert.equal(map.getZoom(), maps[1].getZoom());
+});
+
+test("comparison legends and opacity use the live layers and preserve fire filtering", async (t) => {
+  const { change, submit, $, maps, layers, window, calls } = setup(t, {
+    "/api/fires": collection(
+      point({ frp: 5, acq_datetime_utc: "2026-10-20T08:00:00Z" }),
+      point({ frp: 100, acq_datetime_utc: "2026-10-21T08:00:00Z" }),
+    ),
+    "/api/land-cover/selection": { year: 2024, resolution_m: 10 },
+    "/api/land-cover/style": {
+      entries: [{ alpha: 255, color: "#123456", label: "Woodland" }],
+    },
+  });
+  change("show-burn", false);
+  change("show-land-cover", true);
+  await submit();
+  const panels = $("comparison-grid").querySelectorAll(".comparison-panel");
+  assert.match(panels[0].textContent, /FIRMS detections/);
+  assert.doesNotMatch(panels[0].textContent, /Woodland/);
+  assert.match(panels[1].textContent, /Woodland/);
+  const opacity = panels[1].querySelector("input");
+  opacity.value = "35";
+  opacity.dispatchEvent(new window.Event("input", { bubbles: true }));
+  const land = layers.find((layer) => layer.url?.startsWith("/api/land-cover/tiles"));
+  assert.equal(land.target, maps[2]);
+  assert.equal(land.opacity, 0.35);
+  assert.equal($("land-cover-opacity").value, "35");
+  $("land-cover-opacity").value = "60";
+  $("land-cover-opacity").dispatchEvent(new window.Event("input", { bubbles: true }));
+  assert.equal(opacity.value, "60");
+  const fireOpacity = panels[0].querySelector("input");
+  fireOpacity.value = "40";
+  fireOpacity.dispatchEvent(new window.Event("input", { bubbles: true }));
+  const original = [...maps[1].layers].find((layer) => layer.kind === "geojson" && layer.getLayers().some((child) => child.popup));
+  assert.equal(original.style.fillOpacity, 0.9 * 0.4);
+  const before = calls.length;
+  $("frp-threshold").value = "1000";
+  $("frp-threshold").dispatchEvent(new window.Event("input", { bubbles: true }));
+  assert.equal(original.target, null);
+  assert.equal($("detection-count").textContent, "1");
+  assert.equal(calls.length, before);
+  assert.ok([...maps[1].layers].some((layer) => layer.kind === "geojson" && layer !== original && layer.getLayers().some((child) => child.popup)));
+  assert.equal(layers.filter((layer) => layer.kind === "marker").at(-1).options.fillOpacity, 0.9 * 0.4);
+});
+
+test("switching layouts and reloading removes old maps without refetching or losing the view", async (t) => {
+  const { change, submit, $, maps, calls, layers, window } = setup(t);
+  change("show-burn", false);
+  change("show-fuel", true);
+  await submit();
+  maps[1].setView({ lat: -12, lng: 28 }, 9);
+  const previous = maps.slice(1);
+  const requests = calls.length;
+  change("map-view", "single");
+  assert.equal(calls.length, requests);
+  assert.equal($("comparison-grid").hidden, true);
+  assert.ok(previous.every((map) => map.removed));
+  assert.equal(maps[0].getZoom(), 9);
+  assert.equal(window.document.body.dataset.mapState, "ready");
+  assert.equal(layers.find((layer) => layer.url?.startsWith("/api/fuel/tiles")).target, maps[0]);
+  change("map-view", "compare");
+  assert.equal(calls.length, requests);
+  assert.equal(maps.at(-1).getZoom(), 9);
+  const comparison = maps.slice(-2);
+  change("show-fuel", false);
+  await submit();
+  assert.ok(comparison.every((map) => map.removed));
+  assert.equal($("comparison-grid").hidden, true);
+  assert.equal($("load").disabled, false);
+});
+
+test("comparison panels report individual source and tile errors", async (t) => {
+  const { change, submit, $, layers } = setup(t, {
+    "/api/land-cover/selection": { error: "Land cover unavailable" },
+  });
+  change("show-burn", false);
+  change("show-land-cover", true);
+  change("show-fuel", true);
+  await submit();
+  const statuses = [...$("comparison-grid").querySelectorAll(".comparison-status")];
+  assert.match(statuses[1].textContent, /Land cover unavailable/);
+  assert.equal(statuses[1].dataset.state, "error");
+  const fuel = layers.find((layer) => layer.url?.startsWith("/api/fuel/tiles"));
+  fuel.emit("loading");
+  assert.equal(statuses[2].dataset.state, "loading");
+  fuel.emit("tileerror");
+  fuel.emit("load");
+  assert.equal(statuses[2].dataset.state, "error");
+  assert.equal(statuses[0].dataset.state, "ready");
+});
+
+test("unsupported context explicitly keeps a single map", async (t) => {
+  // Precipitation (an incompatible layer) is available in prediction.
+  const { change, submit, $ } = setup(
+    t,
+    { "/api/land-cover/selection": { year: 2024, resolution_m: 10 } },
+    { scenario: "prediction" },
+  );
+  change("show-burn", true);
+  change("show-land-cover", true);
+  change("show-precip-heatmap", true);
+  await submit();
+  assert.equal($("comparison-grid").hidden, true);
+  assert.equal($("map-view").disabled, true);
+  assert.match($("map-view-note").textContent, /single map/);
+});
+
+test("the FWI area layer gets its own synchronized comparison panel", async (t) => {
+  const fwi = {
+    date: "2026-10-13",
+    location: { longitude: 27.85, latitude: -13.15 },
+    source: "GWIS numerical FWI",
+    fwi: 12.4,
+    unit: "dimensionless",
+    status: "available",
+    sampling: "point query",
+    extent: [21.9, -18.1, 33.8, -8.2],
+    coverage: "single provider-rendered WMS image across selected extent",
+    raster_url: "/api/fire-weather-index/gwis/raster.png?date=2026-10-13",
+  };
+  const { change, submit, $, maps, layers } = setup(
+    t,
+    {
+      "/api/fire-weather-index": fwi,
+      "/api/land-cover/selection": { year: 2024, resolution_m: 10 },
+    },
+    { scenario: "response" },
+  );
+  change("show-fwi", true);
+  change("show-burn", true);
+  change("show-land-cover", true);
+  await submit();
+  assert.equal($("comparison-grid").hidden, false);
+  assert.ok($("comparison-grid").classList.contains("count-4"));
+  const titles = [...$("comparison-grid").querySelectorAll("h3")].map(
+    (title) => title.textContent,
+  );
+  assert.deepEqual(titles, [
+    "FIRMS fire activity",
+    "Fire Weather Index",
+    "Burned area",
+    "Land cover",
+  ]);
+  const image = layers.find((layer) => layer.url === fwi.raster_url);
+  assert.equal(image.target, maps[2]);
+  assert.equal($("map-view").disabled, false);
+  const panels = [...$("comparison-grid").querySelectorAll(".comparison-panel")];
+  assert.match(panels[1].textContent, /FWI area layer.*12.4/);
+});
+
+test("selecting all five comparison layers keeps the single map with a note", async (t) => {
+  const { change, submit, $, maps } = setup(t, {
+    "/api/land-cover/selection": { year: 2024, resolution_m: 10 },
+  });
+  change("show-fwi", true);
+  change("show-burn", true);
+  change("show-land-cover", true);
+  change("show-fuel", true);
+  await submit();
+  assert.equal($("comparison-grid").hidden, true);
+  assert.equal(maps.length, 1);
+  assert.equal($("map-view-controls").hidden, false);
+  assert.equal($("map-view").disabled, true);
+  assert.match($("map-view-note").textContent, /up to four layers/);
+});
+
+test("mobile comparison creates separate navigable panels", async (t) => {
+  const { change, submit, $, maps } = setup(t, {}, { mobile: true });
+  change("show-burn", false);
+  change("show-fuel", true);
+  await submit();
+  assert.equal($("comparison-grid").hidden, false);
+  assert.equal(maps.length, 3);
+  assert.match($("map-view-note").textContent, /swipe/);
+  assert.equal($("sidebar").classList.contains("open"), false);
+});
+
+test("satellite imagery stays on the FIRMS panel through layout changes", async (t) => {
+  const { change, submit, $, maps, layers } = setup(t, {
+    "/api/fires": collection(point({ acq_datetime_utc: "2026-10-20T08:00:00Z" })),
+    "/api/cdse/acquisitions": {
+      bbox: [26.95, -13.05, 27.05, -12.95],
+      reference_datetime: "2026-10-20T08:00:00Z",
+      window_start: "2026-10-10T08:00:00Z",
+      window_end: "2026-11-04T08:00:00Z",
+      acquisitions: [{
+        id: "S2-test",
+        datetime: "2026-10-18T08:00:00Z",
+        source: "sentinel-2",
+        platform: "sentinel-2c",
+      }],
+    },
+  });
+  await submit();
+  const fire = [...maps[1].layers].find((layer) =>
+    layer.kind === "geojson" && layer.getLayers().some((child) => child.popup));
+  fire.getLayers()[0].emit("click");
+  await flush();
+  await flush();
+  $("satellite-timeline").querySelector("button.available").click();
+  await flush();
+  const image = layers.filter((layer) => layer.kind === "image").at(-1);
+  assert.equal(image.target, maps[1]);
+  change("map-view", "single");
+  assert.equal(image.target, maps[0]);
+  change("map-view", "compare");
+  assert.equal(image.target, maps.at(-2));
+  $("satellite-map-close").click();
+  assert.equal(image.target, null);
+});
+
+test("a comparison setup failure restores the single map and allows retry", async (t) => {
+  const { submit, $, window, layers } = setup(t);
+  const factory = window.L.map;
+  window.console.error = () => {};
+  window.L.map = () => { throw new Error("Cannot initialize comparison"); };
+  await submit();
+  assert.equal($("load").disabled, false);
+  assert.equal($("comparison-grid").hidden, true);
+  assert.match($("status").textContent, /Cannot initialize comparison/);
+  assert.equal($("status").dataset.state, "error");
+  assert.ok(layers.some((layer) => layer.kind === "geojson" && layer.target));
+  window.L.map = factory;
+  await submit();
+  assert.equal($("comparison-grid").hidden, false);
 });

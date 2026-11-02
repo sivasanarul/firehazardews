@@ -70,6 +70,10 @@
   }
   const overlays = new Map();
   const layerStates = new Map();
+  let comparisonMaps = [];
+  let comparisonSyncing = false;
+  let comparisonSelection = null;
+  let fireOpacity = 1;
   let satelliteAcquisitions = [];
   let selectedAcquisition = null;
   let satelliteBbox = null;
@@ -435,6 +439,338 @@
         "error",
       );
   });
+  const comparisonOrder = ["fire", "fwi", "burn", "land", "fuel"];
+  const comparisonTitles = {
+    fire: "FIRMS fire activity",
+    fwi: "Fire Weather Index",
+    burn: "Burned area",
+    land: "Land cover",
+    fuel: "Vegetation fuel",
+    "burn-land": "Burned area & Land cover",
+  };
+  const comparisonOpacityInputs = {
+    fwi: "fwi-opacity",
+    burn: "burn-opacity",
+    land: "land-cover-opacity",
+    fuel: "fuel-opacity",
+  };
+  function datasetMap(key) {
+    // If requesting burn or land layer and they're combined, use the burn-land map
+    if ((key === "burn" || key === "land") && comparisonMaps.find((entry) => entry.key === "burn-land")) {
+      return comparisonMaps.find((entry) => entry.key === "burn-land").map;
+    }
+    return comparisonMaps.find((entry) => entry.key === key)?.map || map;
+  }
+  function synchronizeMaps(source) {
+    if (comparisonSyncing) return;
+    comparisonSyncing = true;
+    try {
+      for (const target of [map, ...comparisonMaps.map((entry) => entry.map)])
+        if (target !== source)
+          target.setView(source.getCenter(), source.getZoom(), { animate: false });
+    } finally {
+      comparisonSyncing = false;
+    }
+  }
+  function markComparisonLocation(latlng, selected = false) {
+    for (const entry of comparisonMaps) {
+      const property = selected ? "selection" : "cursor";
+      if (latlng) {
+        if (entry[property]) entry[property].setLatLng(latlng);
+        else entry[property] = L.circleMarker(latlng, {
+            radius: selected ? 9 : 5,
+            color: selected ? "#b96539" : "#284c3d",
+            weight: 2,
+            fill: false,
+            interactive: false,
+          }).addTo(entry.map);
+      } else if (entry[property]) {
+        entry.map.removeLayer(entry[property]);
+        entry[property] = null;
+      }
+    }
+    if (selected) comparisonSelection = latlng;
+  }
+  function destroyComparisonMaps() {
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+    for (const entry of comparisonMaps) {
+      for (const key of [entry.key, ...(entry.key === "fire" ? ["satellite"] : [])]) {
+        const layer = overlays.get(key);
+        if (layer) {
+          entry.map.removeLayer(layer);
+          layer.addTo(map);
+        }
+      }
+      entry.map.remove();
+    }
+    comparisonMaps = [];
+    comparisonSyncing = false;
+    $("comparison-grid").replaceChildren();
+    $("comparison-grid").hidden = true;
+    $("comparison-grid").className = "comparison-grid";
+    $("map").closest(".map-workspace").classList.remove("comparison-active");
+    map.invalidateSize({ pan: false });
+    map.setView(center, zoom, { animate: false });
+  }
+  function addComparisonDistricts(entry) {
+    if (entry.districts || !overlays.has("districts") || !districtsGeo) return;
+    entry.districts = L.geoJSON(districtsGeo, {
+      style: {
+        color: "#425951",
+        weight: 1,
+        opacity: 0.75,
+        fillOpacity: 0,
+      },
+      onEachFeature: districtTooltip,
+    }).addTo(entry.map);
+  }
+  function renderComparisonMaps(bounds = null) {
+    let keys = comparisonOrder.filter((key) => layerStates.has(key));
+    const incompatible = ["rain", "hazard", "recovery"]
+      .some((key) => layerStates.has(key));
+    
+    // Group "burn" and "land" together: if both are selected, they share one map
+    const hasBurn = keys.includes("burn");
+    const hasLand = keys.includes("land");
+    if (hasBurn && hasLand) {
+      keys = keys.filter((key) => key !== "burn" && key !== "land");
+      keys.splice(keys.indexOf("fuel") >= 0 ? keys.indexOf("fuel") : keys.length, 0, "burn-land");
+    } else if (hasBurn || hasLand) {
+      // If only one is selected, treat it as a single key for grouping purposes
+      const singleKey = hasBurn ? "burn" : "land";
+      keys = keys.map((key) => key === singleKey || (key === "burn" || key === "land") ? "burn-land" : key);
+      // Remove duplicates
+      keys = Array.from(new Set(keys));
+    }
+    
+    // Comparison supports at most four panels (a 2 × 2 grid).
+    const tooMany = keys.length > 4;
+    const wanted =
+      keys.length >= 2 &&
+      !incompatible &&
+      !tooMany &&
+      $("map-view").value !== "single";
+    // Reuse existing panels when the selection is unchanged so loaded
+    // basemap and dataset tiles are not discarded and refetched.
+    const unchanged =
+      wanted &&
+      comparisonMaps.length === keys.length &&
+      comparisonMaps.every((entry, index) => entry.key === keys[index]);
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+    if (!unchanged) destroyComparisonMaps();
+    $("map-view-controls").hidden = keys.length < 2;
+    $("map-view").disabled = keys.length < 2 || incompatible || tooMany;
+    setText(
+      "map-view-note",
+      incompatible
+        ? "Precipitation, hazard and recovery layers use the single map."
+        : tooMany
+          ? "Comparison shows up to four layers. Deselect one to compare maps."
+          : "Pan or zoom any panel to move all maps. On mobile, swipe the space between maps.",
+    );
+    if (unchanged) {
+      if (bounds) fitMapBounds(bounds);
+      renderLegend();
+      refreshComparisonStatus();
+      return;
+    }
+    if (!wanted) {
+      renderLegend();
+      return;
+    }
+    const grid = $("comparison-grid");
+    grid.hidden = false;
+    grid.classList.add(`count-${keys.length}`);
+    $("map").closest(".map-workspace").classList.add("comparison-active");
+    for (const [index, key] of keys.entries()) {
+      const panel = document.createElement("section");
+      panel.className = "comparison-panel";
+      panel.setAttribute("aria-label", `${comparisonTitles[key]} map`);
+      const canvas = document.createElement("div");
+      canvas.className = "comparison-map";
+      const title = document.createElement("h3");
+      title.className = "comparison-title";
+      title.textContent = comparisonTitles[key];
+      const legend = document.createElement("details");
+      legend.className = "comparison-legend";
+      const summary = document.createElement("summary");
+      summary.textContent = "Legend and opacity";
+      const legendContent = document.createElement("div");
+      legendContent.className = "comparison-legend-content";
+      
+      // For burn-land combined map, create separate opacity controls for each layer
+      if (key === "burn-land") {
+        const burnOpacityLabel = document.createElement("label");
+        burnOpacityLabel.textContent = "Burned area opacity ";
+        const burnOpacity = document.createElement("input");
+        burnOpacity.type = "range";
+        burnOpacity.min = "0";
+        burnOpacity.max = "100";
+        burnOpacity.value = $("burn-opacity").value;
+        burnOpacity.setAttribute("aria-label", "Burned area opacity");
+        const burnOpacityValue = document.createElement("output");
+        burnOpacityValue.textContent = `${burnOpacity.value}%`;
+        burnOpacityLabel.append(burnOpacity, burnOpacityValue);
+        burnOpacity.addEventListener("input", () => {
+          burnOpacityValue.textContent = `${burnOpacity.value}%`;
+          const original = $("burn-opacity");
+          original.value = burnOpacity.value;
+          original.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        
+        const landOpacityLabel = document.createElement("label");
+        landOpacityLabel.textContent = "Land cover opacity ";
+        const landOpacity = document.createElement("input");
+        landOpacity.type = "range";
+        landOpacity.min = "0";
+        landOpacity.max = "100";
+        landOpacity.value = $("land-cover-opacity").value;
+        landOpacity.setAttribute("aria-label", "Land cover opacity");
+        const landOpacityValue = document.createElement("output");
+        landOpacityValue.textContent = `${landOpacity.value}%`;
+        landOpacityLabel.append(landOpacity, landOpacityValue);
+        landOpacity.addEventListener("input", () => {
+          landOpacityValue.textContent = `${landOpacity.value}%`;
+          const original = $("land-cover-opacity");
+          original.value = landOpacity.value;
+          original.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        
+        legend.append(summary, burnOpacityLabel, landOpacityLabel, legendContent);
+      } else {
+        const opacityLabel = document.createElement("label");
+        opacityLabel.textContent = "Opacity ";
+        const opacity = document.createElement("input");
+        opacity.type = "range";
+        opacity.min = "0";
+        opacity.max = "100";
+        opacity.value = key === "fire"
+          ? String(fireOpacity * 100)
+          : $(comparisonOpacityInputs[key]).value;
+        opacity.setAttribute("aria-label", `${comparisonTitles[key]} opacity`);
+        const opacityValue = document.createElement("output");
+        opacityValue.textContent = `${opacity.value}%`;
+        opacityLabel.append(opacity, opacityValue);
+        opacity.addEventListener("input", () => {
+          opacityValue.textContent = `${opacity.value}%`;
+          if (key === "fire") {
+            fireOpacity = Number(opacity.value) / 100;
+            overlays.get("fire")?.setStyle({
+              opacity: fireOpacity,
+              fillOpacity: (loaded?.mode === "events" ? 0.28 : 0.9) * fireOpacity,
+            });
+          } else {
+            const original = $(comparisonOpacityInputs[key]);
+            original.value = opacity.value;
+            original.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+        });
+        legend.append(summary, opacityLabel, legendContent);
+      }
+      
+      const status = document.createElement("p");
+      status.className = "comparison-status";
+      status.setAttribute("role", "status");
+      panel.append(canvas, title, legend, status);
+      grid.append(panel);
+      const comparisonMap = L.map(canvas, {
+        preferCanvas: true,
+        zoomControl: false,
+        minZoom: 2,
+        worldCopyJump: true,
+      });
+      const entry = { key, map: comparisonMap, legend: legendContent, status };
+      comparisonMaps.push(entry);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      }).addTo(comparisonMap);
+      if (index === 0) {
+        L.control.zoom({ position: "topright" }).addTo(comparisonMap);
+        L.control.scale({ position: "bottomright", imperial: false }).addTo(comparisonMap);
+      }
+      addComparisonDistricts(entry);
+      
+      // For burn-land combined key, add both layers to the same map
+      if (key === "burn-land") {
+        for (const layerKey of ["burn", "land"]) {
+          const layer = overlays.get(layerKey);
+          if (layer && layerStates.has(layerKey)) {
+            map.removeLayer(layer);
+            layer.addTo(comparisonMap);
+          }
+        }
+      } else {
+        for (const layerKey of [key, ...(key === "fire" ? ["satellite"] : [])]) {
+          const layer = overlays.get(layerKey);
+          if (layer) {
+            map.removeLayer(layer);
+            layer.addTo(comparisonMap);
+          }
+        }
+      }
+      comparisonMap.on("moveend zoomend", () => {
+        if (!comparisonSyncing) synchronizeMaps(comparisonMap);
+      });
+      comparisonMap.on("mousemove", (event) => markComparisonLocation(event.latlng));
+      comparisonMap.on("mouseout", () => markComparisonLocation(null));
+      comparisonMap.setView(center, zoom, { animate: false });
+    }
+    if (bounds) fitMapBounds(bounds);
+    if (comparisonSelection) markComparisonLocation(comparisonSelection, true);
+    renderLegend();
+    refreshComparisonStatus();
+  }
+  function refreshComparisonStatus() {
+    for (const entry of comparisonMaps) {
+      let message = "";
+      let state = "ready";
+      
+      if (entry.key === "burn-land") {
+        // For combined burn-land map, show both statuses
+        const burnStatus = layerStates.get("burn");
+        const landStatus = layerStates.get("land");
+        const messages = [];
+        let hasError = false;
+        let hasPending = false;
+        
+        if (burnStatus) {
+          messages.push(burnStatus.message);
+          if (burnStatus.error) hasError = true;
+          if (burnStatus.pending) hasPending = true;
+        }
+        if (landStatus) {
+          messages.push(landStatus.message);
+          if (landStatus.error) hasError = true;
+          if (landStatus.pending) hasPending = true;
+        }
+        
+        message = messages.filter(Boolean).join("; ");
+        state = hasError ? "error" : hasPending ? "loading" : "ready";
+      } else {
+        const status = layerStates.get(entry.key);
+        message = status?.message || "";
+        state = status?.error ? "error" : status?.pending ? "loading" : "ready";
+      }
+      
+      entry.status.textContent = message;
+      entry.status.dataset.state = state;
+    }
+  }
+  $("map-view").addEventListener("input", (event) => event.stopPropagation());
+  $("map-view").addEventListener("change", (event) => {
+    event.stopPropagation();
+    try {
+      renderComparisonMaps();
+    } catch (error) {
+      console.error("Comparison layout change failed", error);
+      destroyComparisonMaps();
+      state("workspace", `Could not change map layout: ${error.message}`, { error: true });
+    }
+  });
   // Leaflet.heat 0.2.0 has no opacity setter or custom-pane support.
   // Control only its canvas, leaving the fire renderer fully opaque.
   $("map").style.setProperty("--precip-opacity", ".5");
@@ -449,11 +785,17 @@
     const left =
       !mobile && $("sidebar").classList.contains("open") ? panelWidth + 42 : 30;
     const top = (workspaceHeader.getBoundingClientRect().bottom || 190) + 20;
-    map.fitBounds(bounds, {
-      paddingTopLeft: [left, top],
-      paddingBottomRight: [70, 60],
-      ...options,
-    });
+    if (comparisonMaps.length) {
+      const target = comparisonMaps[0].map;
+      target.fitBounds(bounds, { padding: [20, 20], ...options });
+      synchronizeMaps(target);
+    } else {
+      map.fitBounds(bounds, {
+        paddingTopLeft: [left, top],
+        paddingBottomRight: [70, 60],
+        ...options,
+      });
+    }
   }
   function readBounds() {
     const parts = $("bbox").value.split(",");
@@ -520,6 +862,24 @@
     if (!districtsGeo) districtsGeo = await json("/api/districts");
     return districtsGeo;
   }
+  function districtTooltip(feature, item) {
+    const tip = document.createElement("span");
+    tip.className = "district-tooltip";
+    const name = document.createElement("strong");
+    name.textContent = feature.properties?.DISTRICT || "Unnamed district";
+    tip.append(name);
+    if (feature.properties?.PROVINCE) {
+      const province = document.createElement("small");
+      province.textContent = feature.properties.PROVINCE;
+      tip.append(province);
+    }
+    item.bindTooltip(tip, {
+      sticky: true,
+      direction: "top",
+      className: "district-tip",
+      opacity: 1,
+    });
+  }
   async function selectDistrict(name) {
     const entry =
       districtList?.find((item) => item.name === name) || districtList?.[0];
@@ -553,7 +913,32 @@
     dirty();
   }
   updateArea(true);
-  new ResizeObserver(() => map.invalidateSize()).observe($("map"));
+  const mapSizeObserver = new ResizeObserver(() => {
+    if (!comparisonMaps.length) {
+      map.invalidateSize();
+      return;
+    }
+    const center = comparisonMaps[0].map.getCenter();
+    const zoom = comparisonMaps[0].map.getZoom();
+    comparisonSyncing = true;
+    try {
+      for (const entry of comparisonMaps) {
+        entry.map.invalidateSize({ pan: false });
+        entry.map.setView(center, zoom, { animate: false });
+      }
+    } finally {
+      comparisonSyncing = false;
+    }
+    synchronizeMaps(comparisonMaps[0].map);
+  });
+  mapSizeObserver.observe($("map"));
+  mapSizeObserver.observe($("comparison-grid"));
+  new ResizeObserver(() => {
+    $("map").closest(".map-workspace").style.setProperty(
+      "--satellite-bar-height",
+      `${$("satellite-map-bar").getBoundingClientRect().height}px`,
+    );
+  }).observe($("satellite-map-bar"));
   function dirty() {
     if (busy) return;
     settingsDirty = Boolean(loaded || fwiResult || overlays.size);
@@ -589,7 +974,7 @@
     selectDistrict($("district").value);
   });
   $("use-map")?.addEventListener("click", () => {
-    const bounds = map.getBounds();
+    const bounds = (comparisonMaps[0]?.map || map).getBounds();
     const values = [
       Math.max(-180, bounds.getWest()),
       Math.max(-90, bounds.getSouth()),
@@ -849,7 +1234,13 @@
           "--precip-opacity",
           Number($(id).value) / 100,
         );
-      else overlays.get(key)?.setOpacity(Number($(id).value) / 100);
+      // The FWI layer can be a point marker, which has no setOpacity.
+      else overlays.get(key)?.setOpacity?.(Number($(id).value) / 100);
+      const entry = comparisonMaps.find((item) => item.key === key);
+      if (entry) {
+        entry.opacity.value = $(id).value;
+        entry.opacity.nextElementSibling.textContent = `${$(id).value}%`;
+      }
     });
   }
   async function json(url) {
@@ -905,6 +1296,7 @@
   }
   function state(key, message, options = {}) {
     layerStates.set(key, { message, ...options });
+    refreshComparisonStatus();
     refreshStatus();
   }
   // Raster layers are stacked so the map follows the on-screen order in the
@@ -948,7 +1340,9 @@
     layer.on("load", () => {
       if (run === generation && !failed) state(key, `${name} loaded`);
     });
-    layer.addTo(map);
+    // Comparison datasets render straight onto their own panel so tiles
+    // load exactly once instead of loading hidden and moving afterwards.
+    layer.addTo(datasetMap(key));
     return layer;
   }
   // The monthly burn mask follows the month of the selected end date; when that
@@ -1069,8 +1463,9 @@
       radius: firePointRadius(properties),
       color: "#5f4b3f",
       weight: 1,
+      opacity: fireOpacity,
       fillColor: fireDateColor(properties),
-      fillOpacity: 0.9,
+      fillOpacity: 0.9 * fireOpacity,
     };
   }
   function popup(feature, layer) {
@@ -1100,8 +1495,13 @@
       panel.append(row);
     }
     layer.bindPopup(panel);
-    if (isObservation && supportsFire)
-      layer.on("click", () => loadSatelliteAcquisitions(feature));
+    layer.on("click", () => {
+      if (isObservation) {
+        const [lng, lat] = feature.geometry.coordinates;
+        markComparisonLocation({ lat, lng }, true);
+        if (supportsFire) loadSatelliteAcquisitions(feature);
+      }
+    });
   }
 
   function createFireLayer(data) {
@@ -1115,13 +1515,14 @@
           : {
               color: "#b96539",
               weight: 1.5,
+              opacity: fireOpacity,
               fillColor: "#ec965e",
-              fillOpacity: 0.28,
+              fillOpacity: 0.28 * fireOpacity,
             },
       pointToLayer: (feature, latlng) =>
         L.circleMarker(latlng, firePointStyle(feature)),
       onEachFeature: popup,
-    }).addTo(map);
+    }).addTo(datasetMap("fire"));
   }
   function fireDateLegendIntervals() {
     if (!fireDateScale) return [];
@@ -1192,7 +1593,7 @@
   function clearSatelliteImagery(hidePanel = true) {
     satelliteSearch += 1;
     const overlay = overlays.get("satellite");
-    if (overlay) map.removeLayer(overlay);
+    if (overlay) datasetMap("fire").removeLayer(overlay);
     overlays.delete("satellite");
     satelliteAcquisitions = [];
     selectedAcquisition = null;
@@ -1204,6 +1605,7 @@
     $("satellite-map-bar").hidden = true;
     if (hidePanel) {
       satelliteFeature = null;
+      markComparisonLocation(null, true);
       $("satellite-result").hidden = true;
     }
     renderLegend();
@@ -1263,7 +1665,7 @@
     setText("satellite-map-date", satelliteDate(acquisition.datetime));
     renderSatelliteTimeline();
     const existing = overlays.get("satellite");
-    if (existing) map.removeLayer(existing);
+    if (existing) datasetMap("fire").removeLayer(existing);
     const params = new URLSearchParams({
       datetime: acquisition.datetime,
       bbox: satelliteBbox.join(","),
@@ -1293,7 +1695,7 @@
         "The satellite image could not be rendered. Check CDSE authentication and try again.",
       );
     });
-    overlay.addTo(map);
+    overlay.addTo(datasetMap("fire"));
     overlays.set("satellite", overlay);
     overlays.get("fire")?.bringToFront?.();
     setText("satellite-status", "Rendering the selected acquisition…");
@@ -1307,7 +1709,7 @@
     setText("satellite-radius-value", satelliteCoverageLabel());
     const search = ++satelliteSearch;
     const existing = overlays.get("satellite");
-    if (existing) map.removeLayer(existing);
+    if (existing) datasetMap("fire").removeLayer(existing);
     overlays.delete("satellite");
     $("satellite-result").hidden = false;
     $("satellite-controls").hidden = true;
@@ -1483,10 +1885,13 @@
       button.append(description, power);
       button.addEventListener("click", () => {
         const layer = layers[index];
-        if (layer.getLatLng)
-          map.setView(layer.getLatLng(), Math.max(map.getZoom(), 10));
+        const target = datasetMap("fire");
+        if (layer.getLatLng) {
+          target.setView(layer.getLatLng(), Math.max(target.getZoom(), 10));
+          markComparisonLocation(layer.getLatLng(), true);
+        }
         else
-          map.fitBounds(layer.getBounds(), { padding: [50, 50], maxZoom: 12 });
+          target.fitBounds(layer.getBounds(), { padding: [50, 50], maxZoom: 12 });
         layer.openPopup();
         if (!isEvents) loadSatelliteAcquisitions(feature);
         sidebar(false, true);
@@ -1614,7 +2019,7 @@
       return matchesFrp && matchesDate;
     });
     const current = overlays.get("fire");
-    if (current) map.removeLayer(current);
+    if (current) datasetMap("fire").removeLayer(current);
     const filtered = { ...loaded.data, features };
     const layer = createFireLayer(filtered);
     overlays.set("fire", layer);
@@ -1697,7 +2102,19 @@
   }
   function renderLegend() {
     $("map-legend").hidden = overlays.size === 0;
-    const container = $("legend-content");
+    renderLayerLegend($("legend-content"));
+    for (const entry of comparisonMaps) {
+      let keys = new Set([entry.key, "districts"]);
+      if (entry.key === "fire") keys.add("satellite");
+      // For burn-land combined map, include both layers
+      if (entry.key === "burn-land") {
+        keys = new Set(["burn", "land", "districts"]);
+      }
+      renderLayerLegend(entry.legend, keys);
+    }
+  }
+  function renderLayerLegend(container, keys = null) {
+    const has = (key) => overlays.has(key) && (!keys || keys.has(key));
     container.replaceChildren();
     function row(color, label) {
       const line = document.createElement("div");
@@ -1710,7 +2127,7 @@
       line.append(swatch, text);
       container.append(line);
     }
-    if (overlays.has("fire")) {
+    if (has("fire")) {
       if (loaded?.mode === "events") {
         row("#e58149", "Fire event polygons");
       } else {
@@ -1745,12 +2162,12 @@
         for (const item of fireDateLegendIntervals()) row(item.color, item.label);
       }
     }
-    if (overlays.has("satellite")) {
+    if (has("satellite")) {
       const note = document.createElement("p");
       note.textContent = `${acquisitionLabel(selectedAcquisition || {})} · ${satelliteStyle === "swir" ? "SWIR" : "True colour"} · ${satelliteCoverageLabel()} · ${Math.round(Number($("satellite-opacity").value))}% opacity`;
       container.append(note);
     }
-    if (overlays.has("fwi") && fwiResult) {
+    if (has("fwi") && fwiResult) {
       const title = document.createElement("p");
       title.textContent = `FWI area layer · centre ${number(fwiResult.fwi)}`;
       container.append(title);
@@ -1766,9 +2183,9 @@
         container.append(note);
       }
     }
-    if (overlays.has("districts"))
+    if (has("districts"))
       row("#425951", "District boundaries · hover for name");
-    if (overlays.has("hazard") && hazardStyle) {
+    if (has("hazard") && hazardStyle) {
       const title = document.createElement("p");
       title.textContent = `Hazard index · ${hazardStyle.year}`;
       const gradient = document.createElement("div");
@@ -1778,22 +2195,22 @@
       labels.textContent = `${hazardStyle.min} · Lower → ${hazardStyle.max} · Higher`;
       container.append(title, gradient, labels);
     }
-    if (overlays.has("recovery"))
+    if (has("recovery"))
       row(
         recoveryStyle?.color || "#2f8f5b",
         `Recovery status${recoveryStyle ? ` · ${recoveryStyle.year}` : ""}`,
       );
-    if (overlays.has("burn"))
+    if (has("burn"))
       row(
         burnStyle?.color || "#c2410c",
         `Burned area${burnPeriod ? ` · ${burnPeriod === "yearly" && burnStyle ? burnStyle.year : burnPeriod}` : ""}`,
       );
-    if (overlays.has("fuel")) {
+    if (has("fuel")) {
       const p = document.createElement("p");
       p.textContent = "Vegetation fuel · GWIS source colors";
       container.append(p);
     }
-    if (overlays.has("land")) {
+    if (has("land")) {
       const title = document.createElement("p");
       title.textContent = "SLIM land-cover classes";
       container.append(title);
@@ -1806,7 +2223,7 @@
         container.append(p);
       }
     }
-    if (overlays.has("rain")) {
+    if (has("rain")) {
       const p = document.createElement("p");
       p.textContent = "Rainfall intensity";
       const gradient = document.createElement("div");
@@ -1893,6 +2310,8 @@
       setText("load-label", "Loading observations…");
       setStatus("Connecting to your selected data sources…", "loading");
       if (matchMedia("(max-width: 900px)").matches) sidebar(false, true);
+      destroyComparisonMaps();
+      comparisonSelection = null;
       for (const layer of overlays.values()) map.removeLayer(layer);
       overlays.clear();
       layerStates.clear();
@@ -2004,7 +2423,7 @@
                     error: true,
                   });
               });
-              layer.addTo(map);
+              layer.addTo(datasetMap("fwi"));
             } else {
               const markerLocation = result.sampled_location || result.location;
               const marker = L.circleMarker(
@@ -2016,7 +2435,7 @@
                   fillColor: "#ed9453",
                   fillOpacity: 0.9,
                 },
-              ).addTo(map);
+              ).addTo(datasetMap("fwi"));
               overlays.set("fwi", marker);
               state("fwi", `FWI ${number(result.fwi)} loaded from ${result.source}`);
             }
@@ -2098,31 +2517,14 @@
               opacity: 0.8,
               fillOpacity: 0.01,
             },
-            onEachFeature: (feature, item) => {
-              const tip = document.createElement("span");
-              tip.className = "district-tooltip";
-              const name = document.createElement("strong");
-              name.textContent =
-                feature.properties?.DISTRICT || "Unnamed district";
-              tip.append(name);
-              const province = feature.properties?.PROVINCE;
-              if (province) {
-                const sub = document.createElement("small");
-                sub.textContent = province;
-                tip.append(sub);
-              }
-              item.bindTooltip(tip, {
-                sticky: true,
-                direction: "top",
-                className: "district-tip",
-                opacity: 1,
-              });
-            },
+            onEachFeature: districtTooltip,
           }).addTo(map);
           // Share Leaflet's canvas with fire markers so an upper canvas cannot
           // swallow district clicks. Keep district fills behind observations.
           layer.bringToBack();
           overlays.set("districts", layer);
+          // Draw boundaries on any comparison panels already on screen.
+          for (const entry of comparisonMaps) addComparisonDistricts(entry);
           state(
             "districts",
             `${data.features.length} district boundaries loaded`,
@@ -2146,8 +2548,8 @@
           );
         });
       if ($("show-fuel").checked)
-        task("fuel", "Vegetation fuel", () =>
-          tiles(
+        task("fuel", "Vegetation fuel", () => {
+          return tiles(
             "fuel",
             "Vegetation fuel",
             "/api/fuel/tiles/{z}/{x}/{y}.png?fuel_layer=fuel_map",
@@ -2156,8 +2558,8 @@
               attribution: "Fuel data © European Commission JRC / GWIS",
             },
             run,
-          ),
-        );
+          );
+        });
       if ($("show-precip-heatmap").checked)
         task("rain", "Precipitation", async () => {
           if (!L.heatLayer)
@@ -2204,6 +2606,17 @@
           );
         });
       refreshStatus();
+      // Build the comparison panels immediately: basemaps appear while the
+      // datasets download, and each layer renders straight onto its panel.
+      try {
+        renderComparisonMaps(bounds);
+      } catch (error) {
+        console.error("Comparison map setup failed", error);
+        destroyComparisonMaps();
+        state("workspace", `Could not prepare comparison maps: ${error.message}`, {
+          error: true,
+        });
+      }
       await Promise.allSettled(tasks);
     } catch (error) {
       console.error("Map loading failed before completion", error);
@@ -2216,6 +2629,15 @@
       explored = overlays.size > 0 || Boolean(fwiResult);
       for (const el of form.querySelectorAll("input,select,button"))
         el.disabled = false;
+      try {
+        renderComparisonMaps(bounds);
+      } catch (error) {
+        console.error("Comparison map setup failed", error);
+        destroyComparisonMaps();
+        state("workspace", `Could not prepare comparison maps: ${error.message}`, {
+          error: true,
+        });
+      }
       $("load").setAttribute("aria-busy", "false");
       showStep(setupStep);
       if (loaded || fwiResult) setPanel("activity");

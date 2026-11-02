@@ -47,14 +47,17 @@
   // optional environmental context outside the restoration primary layer.
   const contextSettings = document.querySelector(".context-settings");
   const burnCard = document.getElementById("burn-card");
-  // Vegetation fuel and precipitation support detection and prediction.
-  // Land cover remains available in every scenario.
-  for (const id of ["show-fuel", "show-precip-heatmap"]) {
+  // Vegetation fuel supports detection and prediction; precipitation supports
+  // prediction only. Land cover remains available in every scenario.
+  for (const [id, scenarios] of [
+    ["show-fuel", ["response", "prediction"]],
+    ["show-precip-heatmap", ["prediction"]],
+  ]) {
     const input = document.getElementById(id);
     const card = input?.closest(".layer-card");
     if (!input || !card) continue;
     input.checked = false;
-    card.hidden = !["response", "prediction"].includes(scenario.id);
+    card.hidden = !scenarios.includes(scenario.id);
   }
   if (scenario.id === "prevention") {
     burnCard.hidden = true;

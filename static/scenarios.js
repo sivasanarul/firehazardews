@@ -46,7 +46,8 @@ window.SLIM_SCENARIOS = [
       "Numerical Fire Weather Index",
       "District boundaries",
       "Burned area (SLIM · monthly & yearly)",
-      ...ENVIRONMENTAL_CONTEXT,
+      "Land cover",
+      "Vegetation fuel",
     ],
     future: [
       ["Ground sensors", "Complement satellite observations", "Concept"],

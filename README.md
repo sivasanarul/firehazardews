@@ -31,7 +31,27 @@ clusters and must not be interpreted as measured burned-area perimeters.
 Follow the Map settings guide to choose an area, observation period, and data
 layers, then select **Explore map** (or **Update map** after the first load).
 Layer checkboxes select the overlays for the next
-update; opacity sliders apply immediately. Fire activity and burned area can
+update; opacity sliders apply immediately. Selecting two to four of fire activity,
+Fire Weather Index, burned area, land cover and vegetation fuel automatically
+opens synchronized
+comparison maps: two side by side, three columns, or a four-panel 2 × 2 grid.
+Comparison supports at most four panels; one selected layer or all five keeps
+the normal full-size map, with a note explaining why. On screens up to 900 px wide,
+panels scroll horizontally; swipe the gutters around the maps to change panels
+and drag inside a map to pan. All panels share pan, zoom, cursor position and
+selected fire locations, with district boundaries when enabled. Each panel has
+its own dataset legend, opacity slider and loading/error status. FIRMS filters
+and result navigation work in comparison mode; satellite RGB appears only on the
+FIRMS panel. Comparison panels open immediately when the map is updated: the
+basemaps display while datasets download, each layer renders directly onto its
+own panel as it arrives (tiles are requested once, never loaded hidden and
+moved), and reloading an unchanged selection reuses the existing panels.
+**Map layout → Single map** restores the overlay view without
+refetching data and retains the current view and filtered results. Precipitation,
+hazard and recovery layers use the single map, with a note explaining why. The
+numerical FWI gets its own comparison panel; when its value is pending or
+unavailable, the panel reports that status over the basemap.
+Fire activity and burned area can
 be selected independently to overlay FIRMS detections (or 15-day event polygons)
 with the time-filtered GWIS MODIS & VIIRS NRT burned-area WMS.
 The browser requests same-origin tile URLs; FastAPI proxies and
@@ -107,7 +127,9 @@ npm test --prefix tests/ui
 ```
 
 These checks cover loading, validation, partial failures, result navigation,
-opacity, empty states, guided navigation, and mobile control visibility. They do not replace a
+opacity, empty states, guided navigation, mobile control visibility, every
+comparison-layer combination, synchronized navigation, layout cleanup, and
+satellite ownership. They do not replace a
 visual browser review.
 
 ## Scenario landing page
@@ -232,8 +254,8 @@ uncertainty about its scope.
 ### Environmental context and future scope
 
 Environmental context follows the scenario brief: prevention provides land
-cover; detection provides numerical FWI, land cover, burned area, vegetation
-fuel, and precipitation; prediction provides burned area and environmental context;
+cover; detection provides numerical FWI, land cover, burned area, and vegetation
+fuel; prediction provides burned area, environmental context, and precipitation;
 restoration provides burned area and land cover. District
 boundaries remain the common reporting reference. Ward-level units, controls,
 endpoints, and summaries are intentionally out of scope at this stage.
